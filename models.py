@@ -23,7 +23,7 @@ class User(Base):
     created_at = Column(DateTime, default=datetime.datetime.now(datetime.UTC))
     updated_at = Column(DateTime, default=created_at)
     is_suspended = Column(Boolean, default=False)
-    suspended_at = Column(DateTime, null=True)
-    suspended_until = Column(DateTime, null=True)
+    suspended_at = Column(DateTime, nullable=True)
+    suspended_until = Column(DateTime, nullable=True)
     is_admin = Column(Boolean, default=False)
 
