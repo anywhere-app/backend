@@ -1,15 +1,11 @@
 from contextlib import asynccontextmanager
-from random import choices
-from typing import List, Annotated
-from datetime import datetime, timedelta
+from typing import Annotated
 from fastapi import FastAPI, HTTPException, Depends, status
 from models import *
 from database import Base, engine, SessionLocal
-from schemas import *
-from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
-import auth
-from auth import get_current_user
+from routers import auth
+from routers.auth import get_current_user
 
 
 @asynccontextmanager
@@ -37,6 +33,12 @@ async def root(db: db_dependency, user: user_dependency | None = None):
     if user:
         return {"message": f"Hello, {user['username']}!"}
     return {"message": "Hello, World!"}
+
+@app.get("/pins")
+async def get_pins(db: db_dependency):
+    pins = db.query(Pin).all()
+    return pins
+
 
 @app.get("/account/{id}")
 async def get_account_by_id(id: int):

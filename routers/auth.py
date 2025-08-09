@@ -15,7 +15,7 @@ router = APIRouter(
     tags = ["auth"]
 )
 
-SECRET_KEY = "#"
+SECRET_KEY = "613a3599a9f954c26d7e592d76014e7182ad48d0a3f53aa3c9db8ab86a75c683"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 3
 
