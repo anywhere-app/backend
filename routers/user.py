@@ -50,7 +50,7 @@ async def get_user_by_id(id: int, db: db_dependency, user: user_dependency):
 async def get_wishlist(db: db_dependency, user: user_dependency):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    wishlist = db.query(Wishlist).joinedload(Wishlist.pin).filter(Wishlist.user_id == user["id"]).all()
+    wishlist = db.query(Wishlist).options(joinedload(Wishlist.pin)).filter(Wishlist.user_id == user["id"]).all()
     if not wishlist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Wishlist not found")
     return [
@@ -63,7 +63,7 @@ async def get_wishlist(db: db_dependency, user: user_dependency):
                 "coordinates": mapping(to_shape(item.pin.coordinates)),
             }
         }
-        for item in wishlist_items
+        for item in wishlist
     ]
 
 @router.post("/wishlist")
@@ -73,9 +73,7 @@ async def add_to_wishlist(pin_id: int, db: db_dependency, user: user_dependency)
     pin = db.query(Pin).filter(Pin.id == pin_id).first()
     if not pin:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pin not found")
-    if not pin_id:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pin ID is required")
-    if db.query(Wishlist).option(joinedload(Wishlist.pin)).filter(Wishlist.pin_id == pin_id, Wishlist.user_id == user["id"]).first():
+    if db.query(Wishlist).filter(Wishlist.pin_id == pin_id, Wishlist.user_id == user["id"]).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pin already in wishlist")
     wishlist_item = Wishlist(
         pin_id=pin_id,
