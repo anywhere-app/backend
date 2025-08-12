@@ -3,7 +3,7 @@ from typing import Annotated
 from database import SessionLocal
 from starlette import status
 from sqlalchemy.orm import Session, joinedload
-from models import Pin, LocationRequest, PinCategory, Category
+from models import Pin, LocationRequest, PinCategory
 from schemas import PinRequest
 from routers.auth import get_current_user
 from geoalchemy2.elements import WKTElement
