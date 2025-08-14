@@ -1,4 +1,4 @@
-# back-end
+# backend
 *nezabite ma za meno repa pls*
 
 ### O commitoch a branchoch
