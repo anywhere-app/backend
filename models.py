@@ -42,6 +42,7 @@ class Pin(Base):
     wishlist_count = Column(Integer, default=0)
     visit_count = Column(Integer, default=0)
     posts_count = Column(Integer, default=0)
+    cost = Column(String, nullable=True)
     wishlists = relationship("Wishlist", back_populates="pin")
     visits = relationship("Visit", back_populates="pin")
     categories = relationship("PinCategory", back_populates="pin")
