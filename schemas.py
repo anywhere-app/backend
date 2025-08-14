@@ -1,4 +1,6 @@
+from fastapi import UploadFile
 from pydantic import BaseModel
+from typing import List, Optional
 
 class CreateUserRequest(BaseModel):
     email: str
@@ -11,3 +13,14 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     username: str | None = None
+
+class PinRequest(BaseModel):
+    title: str
+    lon: float
+    lat: float
+    description: Optional[str]
+    category_ids: Optional[List[int]]
+
+class CategoryRequest(BaseModel):
+    name: str
+    description: Optional[str] = None

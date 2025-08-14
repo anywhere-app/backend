@@ -4,7 +4,7 @@ from fastapi import FastAPI, HTTPException, Depends, status
 from models import *
 from database import Base, engine, SessionLocal
 from sqlalchemy.orm import Session
-from routers import auth
+from routers import auth, pins, categories
 from routers.auth import get_current_user
 
 
@@ -16,6 +16,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 app.include_router(auth.router)
+app.include_router(pins.router)
+app.include_router(categories.router)
 
 def get_db():
     db = SessionLocal()
@@ -33,12 +35,6 @@ async def root(db: db_dependency, user: user_dependency | None = None):
     if user:
         return {"message": f"Hello, {user['username']}!"}
     return {"message": "Hello, World!"}
-
-@app.get("/pins")
-async def get_pins(db: db_dependency):
-    pins = db.query(Pin).all()
-    return pins
-
 
 @app.get("/account/{id}")
 async def get_account_by_id(id: int):
@@ -61,19 +57,4 @@ async def get_visited(id: int):
 async def get_comments(id: int):
     pass
 
-@app.get("/post")
-async def get_posts():
-    pass
-
-@app.get("/post/{id}/comments")
-async def get_post_comments(id: int):
-    pass
-
-@app.get("/post/{id}/likes")
-async def get_post_likes(id: int):
-    pass
-
-@app.get("/post/{id}/media")
-async def get_post_media(id: int):
-    pass
 
