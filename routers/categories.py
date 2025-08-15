@@ -31,8 +31,8 @@ async def get_all_categories(db: db_dependency):
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_category(db: db_dependency, cat: CategoryRequest, user: user_dependency):
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    if not user["is_admin"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     if not cat.name:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Category name is required")
     categories = db.query(Category).all()

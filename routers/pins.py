@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from typing import Annotated
 from database import SessionLocal
 from starlette import status
@@ -9,6 +9,7 @@ from routers.auth import get_current_user
 from geoalchemy2.elements import WKTElement
 from geoalchemy2.shape import to_shape
 from shapely.geometry import mapping
+import os
 
 
 router = APIRouter(
@@ -55,12 +56,13 @@ async def create_pin(db: db_dependency, pin: PinRequest, user: user_dependency):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Title, longitude, and latitude are required")
     if pin.lon < -180 or pin.lon > 180 or pin.lat < -90 or pin.lat > 90:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid coordinates")
-    if db.query(Pin).filter(Pin.coordinates.like(pin.coordinates)).first():
+    if db.query(Pin).filter(Pin.coordinates.like(WKTElement(f"POINT({pin.lon} {pin.lat})", srid=4326))).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pin with these coordinates already exists")
     created_pin = Pin(
         title=pin.title,
         coordinates=WKTElement(f"POINT({pin.lon} {pin.lat})", srid=4326),
         description=pin.description or None,
+        cost=pin.cost or None,
     )
     db.add(created_pin)
     db.commit()
@@ -80,6 +82,7 @@ async def create_pin(db: db_dependency, pin: PinRequest, user: user_dependency):
         "title": created_pin.title,
         "description": created_pin.description,
         "coordinates": mapping(point),
+        "cost": created_pin.cost,
         "categories": [cat.category_id for cat in created_pin.categories] if pin.category_ids else [],
     }
 
@@ -90,8 +93,30 @@ async def get_pin_by_id(pin_id: int, db: db_dependency):
     pin = db.query(Pin).filter(Pin.id == pin_id).first()
     if not pin:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pin not found")
-    return pin
+    return {
+        "id": pin.id,
+        "title": pin.title,
+        "description": pin.description,
+        "coordinates": mapping(to_shape(pin.coordinates)),
+        "categories": [cat.category_id for cat in pin.categories] if pin.categories else [],
+    }
 
 @router.post("/requests", status_code=status.HTTP_201_CREATED)
-async def create_location_request(db: db_dependency, request: PinRequest, user: user_dependency):
-    pass
+async def create_location_request(db: db_dependency,
+                                  user: user_dependency,
+                                  media: list[UploadFile] = File(None),
+                                  request: PinRequest = Depends(PinRequest),
+                                  ):
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    if request.lon < -180 or request.lon > 180 or request.lat < -90 or request.lat > 90:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid coordinates")
+    if media:
+        pass
+    new_request = LocationRequest(
+        user_id=user["id"],
+        location=WKTElement(f"POINT({request.lon} {request.lat})", srid=4326),
+        title=request.title,
+        description=request.description or None,
+        cost=request.cost or None,
+    )

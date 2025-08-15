@@ -3,6 +3,9 @@ from sqlalchemy import Column, Integer, Boolean, String, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import datetime
+
+from sqlalchemy.sql.sqltypes import Interval
+
 from database import Base
 
 
@@ -24,12 +27,15 @@ class User(Base):
     is_suspended = Column(Boolean, default=False)
     suspended_at = Column(DateTime, nullable=True)
     suspended_until = Column(DateTime, nullable=True)
+    suspended_reason = Column(String, nullable=True)
     is_admin = Column(Boolean, default=False)
     is_active = Column(Boolean, default=True)
     last_seen_at = Column(DateTime, default=datetime.datetime.now(datetime.UTC))
     wishlists = relationship("Wishlist", back_populates="user")
     visits = relationship("Visit", back_populates="user")
     location_requests = relationship("LocationRequest", back_populates="user")
+    hangouts = relationship("Hangout", back_populates="user")
+    hangout_participants = relationship("HangoutParticipant", back_populates="user")
 
 class Pin(Base):
     __tablename__ = "pins"
@@ -46,6 +52,7 @@ class Pin(Base):
     wishlists = relationship("Wishlist", back_populates="pin")
     visits = relationship("Visit", back_populates="pin")
     categories = relationship("PinCategory", back_populates="pin")
+    hangouts = relationship("Hangout", back_populates="pin")
 
 class Wishlist(Base):
     __tablename__ = "wishlists"
@@ -90,6 +97,7 @@ class LocationRequest(Base):
     updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
     title = Column(String, nullable=False)
     description = Column(String, nullable=True)
+    cost = Column(String, nullable=True)
     has_media = Column(Boolean, default=False)
     has_categories = Column(Boolean, default=False)
     user = relationship("User", back_populates="location_requests")
@@ -111,3 +119,27 @@ class RequestCategory(Base):
     category_id = Column(Integer, ForeignKey("categories.id"))
     request = relationship("LocationRequest", back_populates="categories")
     category = relationship("Category", back_populates="requests")
+
+class Hangout(Base):
+    __tablename__ = "hangouts"
+    id = Column(Integer, primary_key=True, index=True)
+    creator_id = Column(Integer, ForeignKey("users.id"))
+    title = Column(String, nullable=False)
+    description = Column(String, nullable=False)
+    pin_id = Column(Integer, ForeignKey("pins.id"))
+    expected_participants = Column(Integer, nullable=True)
+    max_participants = Column(Integer, nullable=False)
+    start_time = Column(DateTime(timezone=True), default=func.now())
+    duration = Column(Interval, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=func.now())
+    updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
+    pin = relationship("Pin", back_populates="hangouts")
+    user = relationship("User", back_populates="hangouts")
+    participants = relationship("HangoutParticipant", back_populates="hangout")
+
+class HangoutParticipant(Base):
+    __tablename__ = "hangout_participants"
+    hangout_id = Column(Integer, ForeignKey("hangouts.id"), primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    hangout = relationship("Hangout", back_populates="participants")
+    user = relationship("User", back_populates="hangout_participants")
