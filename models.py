@@ -36,6 +36,10 @@ class User(Base):
     location_requests = relationship("LocationRequest", back_populates="user")
     hangouts = relationship("Hangout", back_populates="user")
     hangout_participants = relationship("HangoutParticipant", back_populates="user")
+    posts = relationship("Post", back_populates="user")
+    comments = relationship("Comment", back_populates="user")
+    post_likes = relationship("PostLike", back_populates="user")
+    comment_likes = relationship("CommentLike", back_populates="user")
 
 class Pin(Base):
     __tablename__ = "pins"
@@ -53,6 +57,7 @@ class Pin(Base):
     visits = relationship("Visit", back_populates="pin")
     categories = relationship("PinCategory", back_populates="pin")
     hangouts = relationship("Hangout", back_populates="pin")
+    posts = relationship("Post", back_populates="pin")
 
 class Wishlist(Base):
     __tablename__ = "wishlists"
@@ -143,3 +148,49 @@ class HangoutParticipant(Base):
     user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
     hangout = relationship("Hangout", back_populates="participants")
     user = relationship("User", back_populates="hangout_participants")
+
+class Post(Base):
+    __tablename__ = "posts"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    pin_id = Column(Integer, ForeignKey("pins.id"))
+    title = Column(String, nullable=True)
+    description = Column(String, nullable=True)
+    like_count = Column(Integer, default=0)
+    comment_count = Column(Integer, default=0)
+    share_count = Column(Integer, default=0)
+    created_at = Column(DateTime(timezone=True), default=func.now())
+    media_url = Column(String, nullable=True)
+    user = relationship("User", back_populates="posts")
+    pin = relationship("Pin", back_populates="posts")
+    comments = relationship("Comment", back_populates="post")
+    likes = relationship("PostLike", back_populates="post")
+
+class Comment(Base):
+    __tablename__ = "comments"
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"))
+    post_id = Column(Integer, ForeignKey("posts.id"))
+    content = Column(String, nullable=False)
+    parent_id = Column(Integer, ForeignKey("comments.id"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=func.now())
+    like_count = Column(Integer, default=0)
+    user = relationship("User", back_populates="comments")
+    post = relationship("Post", back_populates="comments")
+    likes = relationship("CommentLike", back_populates="comment")
+
+class PostLike(Base):
+    __tablename__ = "post_likes"
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    post_id = Column(Integer, ForeignKey("posts.id"), primary_key=True)
+    liked_at = Column(DateTime(timezone=True), default=func.now())
+    user = relationship("User", back_populates="post_likes")
+    post = relationship("Post", back_populates="likes")
+
+class CommentLike(Base):
+    __tablename__ = "comment_likes"
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    comment_id = Column(Integer, ForeignKey("comments.id"), primary_key=True)
+    liked_at = Column(DateTime(timezone=True), default=func.now())
+    user = relationship("User", back_populates="comment_likes")
+    comment = relationship("Comment", back_populates="likes")

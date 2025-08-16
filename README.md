@@ -1,5 +1,7 @@
 # back-end
-*nezabite ma za meno repa pls*
+
+notes:
+sprvu posty maju len jeden subor (video, fotka atd)
 
 endpointy:
 /api/account 

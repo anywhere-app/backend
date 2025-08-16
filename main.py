@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import FastAPI, HTTPException, Depends
 from database import Base, engine, SessionLocal
 from sqlalchemy.orm import Session
-from routers import auth, pins, categories, user, hangouts
+from routers import auth, pins, categories, user, hangouts, posts
 from routers.auth import get_current_user
 
 
@@ -19,6 +19,7 @@ app.include_router(pins.router)
 app.include_router(categories.router)
 app.include_router(user.router)
 app.include_router(hangouts.router)
+app.include_router(posts.router)
 
 def get_db():
     db = SessionLocal()

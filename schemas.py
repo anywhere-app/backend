@@ -44,3 +44,7 @@ class HangoutUpdate(BaseModel):
     max_participants: Optional[int] = None
     start_time: Optional[datetime] = None
     duration: Optional[timedelta] = None
+
+class CommentRequest(BaseModel):
+    content: str
+    parent_id: Optional[int] = None
