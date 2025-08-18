@@ -1,6 +1,6 @@
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
-from typing import Annotated
+from typing import Annotated, Optional
 from fastapi.params import Form
 from database import SessionLocal
 from starlette import status
@@ -173,8 +173,10 @@ async def create_comment(user: user_dependency,
     return serialize_comment(new_comment)
 
 
-@router.delete("/{post_id}/comments/{comment_id}")
-async def delete_comment(db: db_dependency, post_id: int, comment_id: int, user: user_dependency):
+@router.delete("/comments/{comment_id}")
+async def delete_comment(db: db_dependency,
+                         comment_id: int,
+                         user: user_dependency):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     comment = db.query(Comment).filter(Comment.id == comment_id, Comment.user_id == user["id"]).first()
@@ -187,7 +189,7 @@ async def delete_comment(db: db_dependency, post_id: int, comment_id: int, user:
     return {"detail": "Comment deleted successfully"}
 
 
-@router.post("{post_id}/comments/{comment_id}/like", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/{post_id}/comments/{comment_id}/like", status_code=status.HTTP_202_ACCEPTED)
 async def create_like(db: db_dependency,
                       post_id: int,
                       comment_id: int,

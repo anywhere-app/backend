@@ -9,6 +9,14 @@ from sqlalchemy.sql.sqltypes import Interval
 from database import Base
 
 
+class Follow(Base):
+    __tablename__ = "follows"
+    follower_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    following_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    followed_at = Column(DateTime(timezone=True), default=func.now())
+    follower = relationship("User", foreign_keys=[follower_id], back_populates="following")
+    following = relationship("User", foreign_keys=[following_id], back_populates="followers")
+
 class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
@@ -29,7 +37,6 @@ class User(Base):
     suspended_until = Column(DateTime, nullable=True)
     suspended_reason = Column(String, nullable=True)
     is_admin = Column(Boolean, default=False)
-    is_active = Column(Boolean, default=True)
     last_seen_at = Column(DateTime, default=datetime.datetime.now(datetime.UTC))
     wishlists = relationship("Wishlist", back_populates="user")
     visits = relationship("Visit", back_populates="user")
@@ -40,6 +47,8 @@ class User(Base):
     comments = relationship("Comment", back_populates="user")
     post_likes = relationship("PostLike", back_populates="user")
     comment_likes = relationship("CommentLike", back_populates="user")
+    following = relationship("Follow", foreign_keys=[Follow.follower_id], back_populates="follower")
+    followers = relationship("Follow", foreign_keys=[Follow.following_id], back_populates="following")
 
 class Pin(Base):
     __tablename__ = "pins"

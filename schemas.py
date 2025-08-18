@@ -1,6 +1,10 @@
 from datetime import datetime, timedelta
-from pydantic import BaseModel
-from typing import List, Optional
+from pydantic import BaseModel, ConfigDict
+from typing import List, Optional, Dict, Any
+
+
+class BaseSchema(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
 
 class CreateUserRequest(BaseModel):
     email: str
@@ -48,3 +52,50 @@ class HangoutUpdate(BaseModel):
 class CommentRequest(BaseModel):
     content: str
     parent_id: Optional[int] = None
+
+class UserResponse(BaseSchema):
+    id: int
+    username: str
+    email: str
+    bio: str | None = None
+    pfp_url: str | None = None
+    follower_count: int
+    following_count: int
+    posts_count: int
+    likes_count: int
+    visited_count: int
+    created_at: datetime
+    updated_at: datetime
+    is_admin: bool
+    is_suspended: bool
+    suspended_at: datetime | None = None
+    suspended_until: datetime | None = None
+    suspended_reason: str | None = None
+
+
+class PinResponse(BaseSchema):
+    title: str
+    description: str | None
+    coordinates: Dict[str, Any]
+    categories: List[int]
+    cost: float | None
+    post_count: int
+
+class WishlistResponse(BaseSchema):
+    pin_id: int
+    added_at: datetime
+    pin: PinResponse
+
+class VisitResponse(BaseSchema):
+    pin_id: int
+    visited_at: datetime
+    pin: PinResponse
+
+class FollowResponse(BaseSchema):
+    follower_id: int
+    following_id: int
+    followed_at: datetime
+
+class SuspensionRequest(BaseModel):
+    reason: str
+    duration: Optional[timedelta] = None

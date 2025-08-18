@@ -1,9 +1,11 @@
+from datetime import datetime, UTC
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Annotated
 from database import SessionLocal
 from starlette import status
 from sqlalchemy.orm import Session, joinedload
-from models import Pin, LocationRequest, PinCategory, Visit, Wishlist, User
+from models import Pin, LocationRequest, PinCategory, Visit, Wishlist, User, Follow
+from schemas import UserResponse, WishlistResponse, VisitResponse, FollowResponse, SuspensionRequest
 from routers.auth import get_current_user
 from geoalchemy2.elements import WKTElement
 from geoalchemy2.shape import to_shape
@@ -25,7 +27,7 @@ db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[dict, Depends(get_current_user)]
 
 
-@router.get("/")
+@router.get("/", response_model=UserResponse)
 async def get_user(db: db_dependency, user: user_dependency):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -111,19 +113,64 @@ async def remove_from_wishlist(pin_id: int, db: db_dependency, user: user_depend
     db.commit()
     return {"message": "Pin removed from wishlist"}
 
-@router.get("/{id}")
+@router.get("/{id}", response_model=UserResponse)
 async def get_user_by_id(id: int, db: db_dependency, user: user_dependency):
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    if not user["is_admin"]:
+    if not user["is_admin"] and user["id"] != id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
     account = db.query(User).filter(User.id == id).first()
     if not account:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return account
 
+@router.get("/{id}/followers", response_model=list[FollowResponse])
+async def get_followers_by_id(id: int, db: db_dependency, user: user_dependency):
+    followers = db.query(Follow).filter(Follow.following_id == id).all()
+    if not followers:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No followers found for this user")
+    return followers
+
+@router.get("/{id}/following", response_model=list[FollowResponse])
+async def get_following_by_id(id: int, db: db_dependency, user: user_dependency):
+    following = db.query(Follow).filter(Follow.follower_id == id).all()
+    if not following:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No following found for this user")
+    return following
+
+@router.post("/{id}/follow", response_model=FollowResponse)
+async def follow(db: db_dependency, id: int, user: user_dependency):
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    account = db.query(User).filter(User.id == id).first()
+    if not account:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    follow = db.query(Follow).filter(Follow.follower_id == user["id"], Follow.following_id == id).first()
+    if follow:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already following this user")
+    new_follow = Follow(
+        follower_id=user["id"],
+        following_id=id
+    )
+    db.add(new_follow)
+    db.commit()
+    db.refresh(new_follow)
+    return new_follow
+
+@router.delete("/{id}/follow")
+async def unfollow_user(id: int, db: db_dependency, user: user_dependency):
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    account = db.query(User).filter(User.id == id).first()
+    if not account:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    follow = db.query(Follow).filter(Follow.follower_id == user["id"], Follow.following_id == id).first()
+    if not follow:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Not following this user")
+    db.delete(follow)
+    db.commit()
+    return {"message": "Unfollowed successfully"}
+
 @router.get("/{id}/visited")
-async def get_visited_by_user(id: int, db: db_dependency, user: user_dependency):
+async def get_visited_by_id(id: int, db: db_dependency, user: user_dependency):
     if not user["is_admin"] and user["id"] != id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
     visited = db.query(Visit).options(joinedload(Visit.pin)).filter(Visit.user_id == id).all()
@@ -140,6 +187,26 @@ async def get_wishlist_by_id(id: int, user: user_dependency, db: db_dependency):
     if not wishlist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Wishlist not found")
     return [serialize_wishlist_item(item) for item in wishlist]
+
+@router.post("/{id}/suspend", response_model=UserResponse)
+async def suspend_user(id: int, db: db_dependency, user: user_dependency, suspension_request: SuspensionRequest):
+    if not user["is_admin"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+    account = db.query(User).filter(User.id == id).first()
+    if not account:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if account.is_suspended:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="User is already suspended")
+
+    account.is_suspended = True
+    account.suspended_at = datetime.now(UTC)
+    account.suspended_until = account.suspended_at + suspension_request.duration
+    account.suspended_reason = suspension_request.reason
+    db.commit()
+    db.refresh(account)
+    return account
+
+
 
 
 def serialize_wishlist_item(item: Wishlist):
