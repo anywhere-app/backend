@@ -40,7 +40,6 @@ async def create_user(db: db_dependency, create_user_request: CreateUserRequest)
         email=create_user_request.email,
         username=create_user_request.username,
         hashed_password=pwd_context.hash(create_user_request.password),
-        is_admin=create_user_request.admin,
     )
 
     db.add(create_user_model)
@@ -61,6 +60,8 @@ def authenticate_user(email: str, password: str, db):
         return False
     if not pwd_context.verify(password, user.hashed_password):
         return False
+    if user.is_suspended:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is suspended")
     return user
 
 def create_access_token(username: str, user_id: int, is_admin: bool, expires_delta: timedelta | None = None):
@@ -81,3 +82,17 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication credentials")
 
+@router.post("/admin-user", status_code=status.HTTP_201_CREATED)
+async def create_admin_user(db: db_dependency, create_user_request: CreateUserRequest, user: Annotated[dict, Depends(get_current_user)]):
+    if not user["is_admin"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can create admin users")
+
+    create_user_model = User(
+        email=create_user_request.email,
+        username=create_user_request.username,
+        hashed_password=pwd_context.hash(create_user_request.password),
+        is_admin=True,
+    )
+
+    db.add(create_user_model)
+    db.commit()

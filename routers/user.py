@@ -4,9 +4,10 @@ from typing import Annotated
 from database import SessionLocal
 from starlette import status
 from sqlalchemy.orm import Session, joinedload
-from models import Pin, LocationRequest, PinCategory, Visit, Wishlist, User, Follow
-from schemas import UserResponse, WishlistResponse, VisitResponse, FollowResponse, SuspensionRequest
+from models import Pin, Visit, Wishlist, User, Follow, Comment, Post
+from schemas import UserResponse, FollowResponse, SuspensionRequest
 from routers.auth import get_current_user
+from routers.posts import serialize_post, serialize_comment
 from geoalchemy2.elements import WKTElement
 from geoalchemy2.shape import to_shape
 from shapely.geometry import mapping
@@ -187,6 +188,39 @@ async def get_wishlist_by_id(id: int, user: user_dependency, db: db_dependency):
     if not wishlist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Wishlist not found")
     return [serialize_wishlist_item(item) for item in wishlist]
+
+@router.get("/{id}/comments")
+async def get_comments_by_id(id: int, db: db_dependency, user: user_dependency):
+    if not user["is_admin"] and user["id"] != id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+    comments = db.query(Comment).filter(Comment.user_id == id).all()
+    if not comments:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No comments found for this user")
+    return [serialize_comment(comment) for comment in comments]
+
+@router.get("/{id}/liked-comments")
+async def get_liked_comments_by_id(id: int, db: db_dependency, user: user_dependency):
+    if not user["is_admin"] and user["id"] != id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+    liked_comments = db.query(Comment).filter(Comment.likes.any(user_id=id)).all()
+    if not liked_comments:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No liked comments found for this user")
+    return [serialize_comment(comment) for comment in liked_comments]
+
+@router.get("/{id}/liked-posts")
+async def get_liked_posts_by_id(id: int, db: db_dependency, user: user_dependency):
+    if not user["is_admin"] and user["id"] != id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
+    liked_posts = db.query(Post).filter(Post.likes.any(user_id=id)).all()
+    return [serialize_post(post) for post in liked_posts]
+
+@router.get("/{id}/posts")
+async def get_posts_by_id(id: int, user: user_dependency, db: db_dependency):
+    posts = db.query(Post).options(joinedload(Post.user), joinedload(Post.pin)).filter(Post.user_id == id).all()
+    if not posts:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No posts found for this user")
+    return [serialize_post(post) for post in posts]
+
 
 @router.post("/{id}/suspend", response_model=UserResponse)
 async def suspend_user(id: int, db: db_dependency, user: user_dependency, suspension_request: SuspensionRequest):

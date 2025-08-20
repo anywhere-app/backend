@@ -10,7 +10,6 @@ class CreateUserRequest(BaseModel):
     email: str
     username: str
     password: str
-    admin: Optional[bool] = False
 
 class Token(BaseModel):
     access_token: str
@@ -72,7 +71,6 @@ class UserResponse(BaseSchema):
     suspended_until: datetime | None = None
     suspended_reason: str | None = None
 
-
 class PinResponse(BaseSchema):
     title: str
     description: str | None
@@ -80,16 +78,6 @@ class PinResponse(BaseSchema):
     categories: List[int]
     cost: float | None
     post_count: int
-
-class WishlistResponse(BaseSchema):
-    pin_id: int
-    added_at: datetime
-    pin: PinResponse
-
-class VisitResponse(BaseSchema):
-    pin_id: int
-    visited_at: datetime
-    pin: PinResponse
 
 class FollowResponse(BaseSchema):
     follower_id: int
