@@ -135,7 +135,23 @@ async def like_post(db: db_dependency,
     db.refresh(post)
     return serialize_post(post)
 
-
+@router.delete("/{post_id}/unlike", status_code=status.HTTP_202_ACCEPTED)
+async def unlike_post(db: db_dependency,
+                      user: user_dependency,
+                      post_id: int):
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    post = db.query(Post).filter(Post.id == post_id).first()
+    if not post:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Post not found")
+    post_like = db.query(PostLike).filter(PostLike.post_id == post_id, PostLike.user_id == user["id"]).first()
+    if not post_like:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Like not found")
+    post.like_count -= 1
+    db.delete(post_like)
+    db.commit()
+    db.refresh(post)
+    return {"detail": "Like removed successfully"}
 
 @router.get("/{post_id}/comments")
 async def get_post_comments(db: db_dependency, post_id: int):
@@ -215,6 +231,24 @@ async def create_like(db: db_dependency,
     db.refresh(comment)
     return serialize_comment(comment)
 
+@router.delete("/{post_id}/comments/{comment_id}/unlike", status_code=status.HTTP_202_ACCEPTED)
+async def delete_like(db: db_dependency,
+                      post_id: int,
+                      comments_id: int,
+                      user: user_dependency):
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    comment = db.query(Comment).filter(Comment.id == comments_id, Comment.post_id == post_id).first()
+    if not comment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
+    comment_like = db.query(CommentLike).filter(CommentLike.comment_id == comments_id, CommentLike.user_id == user["id"]).first()
+    if not comment_like:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Like not found")
+    comment.like_count -= 1
+    db.delete(comment_like)
+    db.commit()
+    db.refresh(comment)
+    return {"detail": "Like removed successfully"}
 
 def serialize_post(post: Post):
     return {
