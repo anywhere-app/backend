@@ -1,6 +1,6 @@
 from geoalchemy2 import Geometry
-from sqlalchemy import Column, Integer, Boolean, String, DateTime, ForeignKey
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, Boolean, String, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy.orm import relationship, validates
 from sqlalchemy.sql import func
 import datetime
 
@@ -16,6 +16,25 @@ class Follow(Base):
     followed_at = Column(DateTime(timezone=True), default=func.now())
     follower = relationship("User", foreign_keys=[follower_id], back_populates="following")
     following = relationship("User", foreign_keys=[following_id], back_populates="followers")
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+    id = Column(Integer, primary_key=True, index=True)
+    user1_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    user2_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (UniqueConstraint("user1_id", "user2_id", name="unique_user_pair"),)
+    user1 = relationship("User", foreign_keys=[user1_id])
+    user2 = relationship("User", foreign_keys=[user2_id])
+    messages = relationship("Message", back_populates="conversation")
+
+    @validates("user1_id", "user2_id")
+    def validate_users(self, key, value):
+        if key == "user2_id" and self.user1_id is not None:
+            u1, u2 = sorted([self.user1_id, value])
+            self.user1_id, self.user2_id = u1, u2
+            return self.user2_id
+        return value
 
 class User(Base):
     __tablename__ = "users"
@@ -49,6 +68,7 @@ class User(Base):
     comment_likes = relationship("CommentLike", back_populates="user")
     following = relationship("Follow", foreign_keys=[Follow.follower_id], back_populates="follower")
     followers = relationship("Follow", foreign_keys=[Follow.following_id], back_populates="following")
+    messages = relationship("Message", back_populates="sender")
 
 class Pin(Base):
     __tablename__ = "pins"
@@ -203,3 +223,16 @@ class CommentLike(Base):
     liked_at = Column(DateTime(timezone=True), default=func.now())
     user = relationship("User", back_populates="comment_likes")
     comment = relationship("Comment", back_populates="likes")
+
+class Message(Base):
+    __tablename__ = "messages"
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False)
+    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    content = Column(String, nullable=True)
+    media_url = Column(String, nullable=True)
+    post_id = Column(Integer, ForeignKey("posts.id"), nullable=True)
+
+    created_at = Column(DateTime(timezone=True), default=func.now())
+    sender = relationship("User", back_populates="messages")
+    conversation = relationship("Conversation", back_populates="messages")

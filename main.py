@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from typing import Annotated
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, WebSocket
 from database import Base, engine, SessionLocal
 from sqlalchemy.orm import Session
 from routers import auth, pins, categories, user, hangouts, posts
@@ -33,7 +33,20 @@ user_dependency = Annotated[dict, Depends(get_current_user)]
 
 
 @app.get("/")
-async def root(db: db_dependency, user: user_dependency | None = None):
+async def root(user: user_dependency | None = None):
     if user:
         return {"message": f"Hello, {user['username']}!"}
     return {"message": "Hello, World!"}
+
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket, db: db_dependency):
+    await websocket.accept()
+    try:
+        while True:
+            data = await websocket.receive_text()
+            await websocket.send_text(f"Message text was: {data}")
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+    finally:
+        await websocket.close()
