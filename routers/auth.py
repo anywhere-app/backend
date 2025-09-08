@@ -9,15 +9,18 @@ from passlib.context import CryptContext
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from jose import JWTError, jwt
 from schemas import CreateUserRequest, Token
+import os
+from dotenv import load_dotenv
 
 router = APIRouter(
     prefix = "/auth",
     tags = ["auth"]
 )
 
-SECRET_KEY = "613a3599a9f954c26d7e592d76014e7182ad48d0a3f53aa3c9db8ab86a75c683"
-ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 3
+load_dotenv()
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = os.getenv("ALGORITHM")
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
@@ -47,7 +50,7 @@ async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm,
     user = authenticate_user(form_data.username, form_data.password, db)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
-    token = create_access_token(user.email, user.id, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
+    token = create_access_token(user.email, user.id, user.is_admin, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
 
     return {"access_token": token, "token_type": "bearer"}
 
@@ -57,10 +60,12 @@ def authenticate_user(email: str, password: str, db):
         return False
     if not pwd_context.verify(password, user.hashed_password):
         return False
+    if user.is_suspended:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="User is suspended")
     return user
 
-def create_access_token(username: str, user_id: int, expires_delta: timedelta | None = None):
-    encode = {"sub": username, "id": user_id}
+def create_access_token(username: str, user_id: int, is_admin: bool, expires_delta: timedelta | None = None):
+    encode = {"sub": username, "id": user_id, "is_admin": is_admin}
     expires = datetime.utcnow() + expires_delta
     encode.update({"exp": expires})
     return jwt.encode(encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -70,9 +75,24 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
         user_id: int = payload.get("id")
+        is_admin: bool = payload.get("is_admin")
         if username is None or user_id is None:
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication credentials")
-        return {"username": username, "id": user_id}
+        return {"username": username, "id": user_id, "is_admin": is_admin}
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication credentials")
 
+@router.post("/admin-user", status_code=status.HTTP_201_CREATED)
+async def create_admin_user(db: db_dependency, create_user_request: CreateUserRequest, user: Annotated[dict, Depends(get_current_user)]):
+    if not user["is_admin"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can create admin users")
+
+    create_user_model = User(
+        email=create_user_request.email,
+        username=create_user_request.username,
+        hashed_password=pwd_context.hash(create_user_request.password),
+        is_admin=True,
+    )
+
+    db.add(create_user_model)
+    db.commit()

@@ -1,5 +1,5 @@
-# backend
-*nezabite ma za meno repa pls*
+notes:
+sprvu posty maju len jeden subor (video, fotka atd)
 
 ### O commitoch a branchoch
 - Ked vytvarate novy brach, tak robte vo fromate:
