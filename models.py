@@ -3,9 +3,7 @@ from sqlalchemy import Column, Integer, Boolean, String, DateTime, ForeignKey, U
 from sqlalchemy.orm import relationship, validates
 from sqlalchemy.sql import func
 import datetime
-
 from sqlalchemy.sql.sqltypes import Interval
-
 from database import Base
 
 
@@ -69,6 +67,7 @@ class User(Base):
     following = relationship("Follow", foreign_keys=[Follow.follower_id], back_populates="follower")
     followers = relationship("Follow", foreign_keys=[Follow.following_id], back_populates="following")
     messages = relationship("Message", back_populates="sender")
+    pins = relationship("Pin", back_populates="user")
 
 class Pin(Base):
     __tablename__ = "pins"
@@ -83,6 +82,13 @@ class Pin(Base):
     posts_count = Column(Integer, default=0)
     cost = Column(String, nullable=True)
     view_count = Column(Integer, default=0)
+    created_by = Column(Integer, ForeignKey("users.id"))
+
+    __table_args__ = (
+        UniqueConstraint("coordinates", name="unique_pin_coordinates"),
+    )
+
+    user = relationship("User", back_populates="pins")
     wishlists = relationship("Wishlist", back_populates="pin")
     visits = relationship("Visit", back_populates="pin")
     categories = relationship("PinCategory", back_populates="pin")

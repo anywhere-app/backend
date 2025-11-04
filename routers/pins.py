@@ -3,9 +3,7 @@ from pathlib import Path
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from typing import Annotated, Optional
-
 from fastapi.params import Form
-
 from database import SessionLocal
 from starlette import status
 from sqlalchemy.orm import Session, joinedload
@@ -96,35 +94,6 @@ async def create_pin(db: db_dependency, pin: PinRequest, user: user_dependency):
     }
 
 
-
-@router.get("/{pin_id}")
-async def get_pin_by_id(pin_id: int, db: db_dependency):
-    pin = db.query(Pin).filter(Pin.id == pin_id).first()
-    if not pin:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pin not found")
-    return {
-        "id": pin.id,
-        "title": pin.title,
-        "description": pin.description,
-        "coordinates": mapping(to_shape(pin.coordinates)),
-        "cost": pin.cost,
-        "wishlist_count": pin.wishlist_count,
-        "visit_count": pin.visit_count,
-        "posts_count": pin.posts_count,
-        "views_count": pin.views_count,
-        "created_at": pin.created_at,
-        "updated_at": pin.updated_at,
-        "categories": [cat.category_id for cat in pin.categories] if pin.categories else [],
-    }
-
-@router.put("/{pin_id}")
-async def update_pin(pin_id: int, db: db_dependency, pin: PinRequest, user: user_dependency):
-    pass
-
-@router.delete("/{pin_id}")
-async def delete_pin(pin_id: int, db: db_dependency, user: user_dependency):
-    pass
-
 @router.get("/requests")
 async def get_location_requests(db: db_dependency, user: user_dependency):
     if not user["is_admin"]:
@@ -141,51 +110,6 @@ async def get_location_requests(db: db_dependency, user: user_dependency):
         }
         for req in requests
     ]
-
-@router.get("/requests/{request_id}")
-async def get_location_request(request_id: int, db: db_dependency, user: user_dependency):
-    if not user["is_admin"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can access location requests")
-    request = db.query(LocationRequest).filter(LocationRequest.id == request_id).options(joinedload(LocationRequest.categories), joinedload(LocationRequest.media)).first()
-    if not request:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location request not found")
-    point = to_shape(request.location)
-    return {
-        "id": request.id,
-        "user_id": request.user_id,
-        "title": request.title,
-        "description": request.description,
-        "coordinates": mapping(point),
-        "cost": request.cost,
-        "has_media": request.has_media,
-        "categories": [cat.category_id for cat in request.categories] if request.categories else [],
-        "media_urls": [media.media_url for media in request.media] if request.media else [],
-        "created_at": request.created_at,
-    }
-
-@router.delete("/requests/{request_id}")
-async def delete_location_request(request_id: int, db: db_dependency, user: user_dependency):
-    if not user["is_admin"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can delete location requests")
-    request = db.query(LocationRequest).filter(LocationRequest.id == request_id).first()
-    if not request:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location request not found")
-    db.delete(request)
-
-    media = db.query(RequestMedia).filter(RequestMedia.request_id == request_id).all()
-    for m in media:
-        media_path = MEDIA_DIR / str(m.media_url).lstrip('/')
-        if media_path.exists():
-            media_path.unlink()
-        db.delete(m)
-
-    categories = db.query(RequestCategory).filter(RequestCategory.request_id == request_id).all()
-    for cat in categories:
-        db.delete(cat)
-
-    db.delete(categories)
-    db.commit()
-    return {"detail": "Location request deleted successfully"}
 
 @router.post("/requests", status_code=status.HTTP_201_CREATED)
 async def create_location_request(db: db_dependency,
@@ -283,3 +207,126 @@ async def create_location_request(db: db_dependency,
         "categories": [cat.category_id for cat in new_request.categories] if category_ids else [],
         "media_urls": [url for url in media_urls] if media_urls else [],
     }
+
+@router.get("/requests/{request_id}")
+async def get_location_request(request_id: int, db: db_dependency, user: user_dependency):
+    if not user["is_admin"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can access location requests")
+    request = db.query(LocationRequest).filter(LocationRequest.id == request_id).options(joinedload(LocationRequest.categories), joinedload(LocationRequest.media)).first()
+    if not request:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location request not found")
+    point = to_shape(request.location)
+    return {
+        "id": request.id,
+        "user_id": request.user_id,
+        "title": request.title,
+        "description": request.description,
+        "coordinates": mapping(point),
+        "cost": request.cost,
+        "has_media": request.has_media,
+        "categories": [cat.category_id for cat in request.categories] if request.categories else [],
+        "media_urls": [media.media_url for media in request.media] if request.media else [],
+        "created_at": request.created_at,
+    }
+
+@router.delete("/requests/{request_id}")
+async def delete_location_request(request_id: int, db: db_dependency, user: user_dependency):
+    if not user["is_admin"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can delete location requests")
+    request = db.query(LocationRequest).filter(LocationRequest.id == request_id).first()
+    if not request:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location request not found")
+    db.delete(request)
+
+    media = db.query(RequestMedia).filter(RequestMedia.request_id == request_id).all()
+    for m in media:
+        media_path = MEDIA_DIR / str(m.media_url).lstrip('/')
+        if media_path.exists():
+            media_path.unlink()
+        db.delete(m)
+
+    categories = db.query(RequestCategory).filter(RequestCategory.request_id == request_id).all()
+    for cat in categories:
+        db.delete(cat)
+
+    db.delete(categories)
+    db.commit()
+    return {"detail": "Location request deleted successfully"}
+
+@router.post("/requests/{request_id}/approve", status_code=status.HTTP_202_ACCEPTED)
+async def approve_location_request(request_id: int,
+                                   db: db_dependency,
+                                   user: user_dependency):
+    if not user["id_admin"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can approve location requests")
+    request = db.query(LocationRequest).filter(LocationRequest.id == request_id).first()
+    if not request:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location request not found")
+    request_media = db.query(RequestMedia).filter(RequestMedia.request_id == request_id).all()
+    request_categories = db.query(RequestCategory).filter(RequestCategory.request_id == request_id).all()
+
+    new_pin = Pin(
+        title=request.title,
+        description=request.description,
+        coordinates=request.location,
+        cost=request.cost,
+        created_by=request.user_id,
+    )
+    db.add(new_pin)
+    db.commit()
+    db.refresh(new_pin)
+
+    categories = []
+    for category in request_categories:
+        pin_category = PinCategory(
+            pin_id=new_pin.id,
+            category_id=category.category_id
+        )
+        db.add(pin_category)
+        db.commit()
+        db.refresh(pin_category)
+        categories.append(pin_category)
+
+    return {
+        "id": new_pin.id,
+        "title": new_pin.title,
+        "description": new_pin.description,
+        "coordinates": mapping(to_shape(new_pin.coordinates)),
+        "cost": new_pin.cost,
+        "wishlist_count": new_pin.wishlist_count,
+        "visit_count": new_pin.visit_count,
+        "posts_count": new_pin.posts_count,
+        "views_count": new_pin.views_count,
+        "created_at": new_pin.created_at,
+        "updated_at": new_pin.updated_at,
+        "categories": [cat.category_id for cat in categories] if categories else [],
+    }
+
+
+@router.get("/{pin_id}")
+async def get_pin_by_id(pin_id: int, db: db_dependency):
+    pin = db.query(Pin).filter(Pin.id == pin_id).first()
+    if not pin:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pin not found")
+    return {
+        "id": pin.id,
+        "title": pin.title,
+        "description": pin.description,
+        "coordinates": mapping(to_shape(pin.coordinates)),
+        "cost": pin.cost,
+        "wishlist_count": pin.wishlist_count,
+        "visit_count": pin.visit_count,
+        "posts_count": pin.posts_count,
+        "views_count": pin.views_count,
+        "created_at": pin.created_at,
+        "updated_at": pin.updated_at,
+        "categories": [cat.category_id for cat in pin.categories] if pin.categories else [],
+    }
+
+@router.put("/{pin_id}")
+async def update_pin(pin_id: int, db: db_dependency, pin: PinRequest, user: user_dependency):
+    pass
+
+@router.delete("/{pin_id}")
+async def delete_pin(pin_id: int, db: db_dependency, user: user_dependency):
+    pass

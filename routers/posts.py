@@ -34,8 +34,15 @@ db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[dict, Depends(get_current_user)]
 
 load_dotenv()
-MEDIA_DIR = Path(os.getenv("MEDIA_DIR"))
+BASE_DIR = Path(__file__).resolve().parent.parent
+MEDIA_DIR = Path(os.getenv("MEDIA_DIR", "media"))
+MEDIA_DIR = BASE_DIR / MEDIA_DIR
+MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+BASE_URL = os.getenv("BASE_URL", "http://13.48.126.53")
 
+MAX_IMAGE_SIZE = 20 * 1024 * 1024
+MAX_VIDEO_SIZE = 400 * 1024 * 1024
+MAX_MEDIA_COUNT = 10
 
 @router.get("/")
 async def get_all_posts(db: db_dependency):
@@ -62,15 +69,25 @@ async def create_post(db: db_dependency,
     if media.content_type not in ["image/jpeg", "image/png", "image/gif", "video/mp4"]:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported media type")
 
-    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
     user_dir = MEDIA_DIR / str(user["id"])
     user_dir.mkdir(parents=True, exist_ok=True)
+
     ext = os.path.splitext(media.filename)[1]
     unique_name = f"{uuid.uuid4().hex}{ext}"
     file_path = user_dir / unique_name
+    file_size = 0
+    max_size = MAX_VIDEO_SIZE if 'video' in media.content_type else MAX_IMAGE_SIZE
 
     with open(file_path, "wb") as f:
-        f.write(await media.read())
+        while chunk := await media.read(1024 * 1024):  # 1MB chunks
+            file_size += len(chunk)
+            if file_size > max_size:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"File too large. Max size: {max_size / (1024 * 1024):.0f}MB"
+                )
+            f.write(chunk)
+
     media_url = f"/media/{user['id']}/{unique_name}"
 
     new_post = Post(
