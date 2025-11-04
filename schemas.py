@@ -75,7 +75,7 @@ class PinResponse(BaseSchema):
     title: str
     description: str | None
     coordinates: Dict[str, Any]
-    categories: List[int]
+    categories: List[str]
     cost: float | None
     post_count: int
 

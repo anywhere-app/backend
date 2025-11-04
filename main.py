@@ -32,12 +32,6 @@ db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[dict, Depends(get_current_user)]
 
 
-@app.get("/")
-async def root(user: user_dependency | None = None):
-    if user:
-        return {"message": f"Hello, {user['username']}!"}
-    return {"message": "Hello, World!"}
-
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, db: db_dependency):

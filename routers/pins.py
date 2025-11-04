@@ -8,7 +8,7 @@ from database import SessionLocal
 from starlette import status
 from sqlalchemy.orm import Session, joinedload
 from models import Pin, LocationRequest, PinCategory, RequestMedia, RequestCategory
-from schemas import PinRequest
+from schemas import PinRequest, PinResponse
 from routers.auth import get_current_user
 from geoalchemy2.elements import WKTElement
 from geoalchemy2.shape import to_shape
@@ -34,23 +34,27 @@ user_dependency = Annotated[dict, Depends(get_current_user)]
 load_dotenv()
 MEDIA_DIR = Path(os.getenv("MEDIA_DIR"))
 
-@router.get("/")
+
+@router.get("/", response_model=list[PinResponse])
 async def get_all_pins(db: db_dependency):
-    pins = db.query(Pin).options(joinedload(Pin.categories)).all()
+    pins = db.query(Pin).options(
+        joinedload(Pin.categories).joinedload(PinCategory.category)
+    ).all()
+
     if not pins:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No pins found")
+
     return [
         {
             "id": pin.id,
             "title": pin.title,
             "description": pin.description,
             "coordinates": mapping(to_shape(pin.coordinates)),
+            "categories": [cat.category.name for cat in pin.categories],
+            "cost": pin.cost,
+            "post_count": pin.posts_count,
             "created_at": pin.created_at,
             "updated_at": pin.updated_at,
-            "categories": [cat.category_id for cat in pin.categories],
-            "wishlist_count": pin.wishlist_count,
-            "visit_count": pin.visit_count,
-            "posts_count": pin.posts_count,
         }
         for pin in pins
     ]
@@ -81,8 +85,8 @@ async def create_pin(db: db_dependency, pin: PinRequest, user: user_dependency):
                 category_id=category
             )
             db.add(pin_category)
-            db.commit()
-            db.refresh(pin_category)
+        db.commit()
+
     point = to_shape(created_pin.coordinates)
     return {
         "id": created_pin.id,
