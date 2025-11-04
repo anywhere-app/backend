@@ -38,7 +38,7 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 MEDIA_DIR = Path(os.getenv("MEDIA_DIR", "media"))
 MEDIA_DIR = BASE_DIR / MEDIA_DIR
 MEDIA_DIR.mkdir(parents=True, exist_ok=True)
-BASE_URL = os.getenv("BASE_URL", "http://") #TODO pridat IP
+BASE_URL = os.getenv("BASE_URL", "http://13.48.126.53")
 
 MAX_IMAGE_SIZE = 20 * 1024 * 1024
 MAX_VIDEO_SIZE = 400 * 1024 * 1024
