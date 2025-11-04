@@ -1,6 +1,6 @@
 from contextlib import asynccontextmanager
 from typing import Annotated
-from fastapi import FastAPI, HTTPException, Depends, WebSocket
+from fastapi import FastAPI, Depends, WebSocket
 from database import Base, engine, SessionLocal
 from sqlalchemy.orm import Session
 from routers import auth, pins, categories, user, hangouts, posts
@@ -14,12 +14,12 @@ async def lifespan(app: FastAPI):
     yield
 
 app = FastAPI(lifespan=lifespan)
-app.include_router(auth.router)
-app.include_router(pins.router)
-app.include_router(categories.router)
-app.include_router(user.router)
-app.include_router(hangouts.router)
-app.include_router(posts.router)
+app.include_router(auth.router, prefix="/api")
+app.include_router(pins.router, prefix="/api")
+app.include_router(categories.router, prefix="/api")
+app.include_router(user.router, prefix="/api")
+app.include_router(hangouts.router, prefix="/api")
+app.include_router(posts.router, prefix="/api")
 
 def get_db():
     db = SessionLocal()
