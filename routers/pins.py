@@ -59,7 +59,7 @@ async def get_all_pins(db: db_dependency):
         for pin in pins
     ]
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED, response_model=PinResponse)
 async def create_pin(db: db_dependency, pin: PinRequest, user: user_dependency):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -87,16 +87,18 @@ async def create_pin(db: db_dependency, pin: PinRequest, user: user_dependency):
             db.add(pin_category)
         db.commit()
 
-    point = to_shape(created_pin.coordinates)
+    pin = created_pin
     return {
-        "id": created_pin.id,
-        "title": created_pin.title,
-        "description": created_pin.description,
-        "coordinates": mapping(point),
-        "cost": created_pin.cost,
-        "categories": [cat.category_id for cat in created_pin.categories] if pin.category_ids else [],
-    }
-
+            "id": pin.id,
+            "title": pin.title,
+            "description": pin.description,
+            "coordinates": mapping(to_shape(pin.coordinates)),
+            "categories": [cat.category.name for cat in pin.categories],
+            "cost": pin.cost,
+            "post_count": pin.posts_count,
+            "created_at": pin.created_at,
+            "updated_at": pin.updated_at,
+        }
 
 @router.get("/requests")
 async def get_location_requests(db: db_dependency, user: user_dependency):
