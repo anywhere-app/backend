@@ -47,6 +47,7 @@ async def get_all_pins(db: db_dependency):
     return [
         {
             "id": pin.id,
+            "slug": pin.slug,
             "title": pin.title,
             "description": pin.description,
             "coordinates": mapping(to_shape(pin.coordinates)),
@@ -63,6 +64,8 @@ async def get_all_pins(db: db_dependency):
 async def create_pin(db: db_dependency, pin: PinRequest, user: user_dependency):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+    if not user["is_admin"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     if not pin.title or not pin.lon or not pin.lat:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Title, longitude, and latitude are required")
     if pin.lon < -180 or pin.lon > 180 or pin.lat < -90 or pin.lat > 90:
@@ -70,7 +73,7 @@ async def create_pin(db: db_dependency, pin: PinRequest, user: user_dependency):
     if db.query(Pin).filter(Pin.coordinates.like(WKTElement(f"POINT({pin.lon} {pin.lat})", srid=4326))).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pin with these coordinates already exists")
     created_pin = Pin(
-        title=pin.title,
+        title=pin.title or None,
         coordinates=WKTElement(f"POINT({pin.lon} {pin.lat})", srid=4326),
         description=pin.description or None,
         cost=pin.cost or None,
@@ -90,6 +93,7 @@ async def create_pin(db: db_dependency, pin: PinRequest, user: user_dependency):
     pin = created_pin
     return {
             "id": pin.id,
+            "slug": pin.slug,
             "title": pin.title,
             "description": pin.description,
             "coordinates": mapping(to_shape(pin.coordinates)),
@@ -259,12 +263,12 @@ async def delete_location_request(request_id: int, db: db_dependency, user: user
     db.commit()
     return {"detail": "Location request deleted successfully"}
 
-@router.post("/requests/{request_id}/approve", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/requests/{request_id}/approve", status_code=status.HTTP_202_ACCEPTED, response_model=PinResponse)
 async def approve_location_request(request_id: int,
                                    db: db_dependency,
                                    user: user_dependency):
     if not user["id_admin"]:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only admins can approve location requests")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     request = db.query(LocationRequest).filter(LocationRequest.id == request_id).first()
     if not request:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Location request not found")
@@ -293,46 +297,52 @@ async def approve_location_request(request_id: int,
         db.refresh(pin_category)
         categories.append(pin_category)
 
+
+    pin = new_pin
     return {
-        "id": new_pin.id,
-        "title": new_pin.title,
-        "description": new_pin.description,
-        "coordinates": mapping(to_shape(new_pin.coordinates)),
-        "cost": new_pin.cost,
-        "wishlist_count": new_pin.wishlist_count,
-        "visit_count": new_pin.visit_count,
-        "posts_count": new_pin.posts_count,
-        "views_count": new_pin.views_count,
-        "created_at": new_pin.created_at,
-        "updated_at": new_pin.updated_at,
-        "categories": [cat.category_id for cat in categories] if categories else [],
+        "id": pin.id,
+            "slug": pin.slug,
+            "title": pin.title,
+            "description": pin.description,
+            "coordinates": mapping(to_shape(pin.coordinates)),
+            "categories": [cat.category.name for cat in pin.categories],
+            "cost": pin.cost,
+            "post_count": pin.posts_count,
+            "created_at": pin.created_at,
+            "updated_at": pin.updated_at,
     }
 
 
-@router.get("/{pin_id}")
-async def get_pin_by_id(pin_id: int, db: db_dependency):
-    pin = db.query(Pin).filter(Pin.id == pin_id).first()
+@router.get("/{pin_slug_or_id}", response_model=PinResponse)
+async def get_pin_by_id(db: db_dependency, pin_slug: Optional[str] = None, pin_id: Optional[int] = None):
+    if not pin_id or not pin_slug:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pin ID or slug is required")
+
+    if pin_slug:
+        pin = db.query(Pin).filter(Pin.slug == pin_slug).first()
+    else:
+        pin = db.query(Pin).filter(Pin.id == pin_id).first()
+
     if not pin:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pin not found")
+
     return {
         "id": pin.id,
+        "slug": pin.slug,
         "title": pin.title,
         "description": pin.description,
         "coordinates": mapping(to_shape(pin.coordinates)),
+        "categories": [cat.category.name for cat in pin.categories],
         "cost": pin.cost,
-        "wishlist_count": pin.wishlist_count,
-        "visit_count": pin.visit_count,
-        "posts_count": pin.posts_count,
-        "views_count": pin.views_count,
+        "post_count": pin.posts_count,
         "created_at": pin.created_at,
         "updated_at": pin.updated_at,
-        "categories": [cat.category_id for cat in pin.categories] if pin.categories else [],
     }
 
-@router.put("/{pin_id}")
-async def update_pin(pin_id: int, db: db_dependency, pin: PinRequest, user: user_dependency):
+@router.put("/{pin_id}", response_model=PinResponse)
+async def todo_update_pin(pin_id: int, db: db_dependency, pin: PinRequest, user: user_dependency):
     pass
 
-@router.delete("/{pin_id}")
-async def delete_pin(pin_id: int, db: db_dependency, user: user_dependency):
+@router.delete("/{pin_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def todo_delete_pin(pin_id: int, db: db_dependency, user: user_dependency):
     pass
