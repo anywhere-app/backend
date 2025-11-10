@@ -55,8 +55,8 @@ async def get_all_posts(db: db_dependency):
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_post(db: db_dependency,
                       user: user_dependency,
-                      title: str | None = Form(None),
-                      description: str | None = Form(None),
+                      title: Optional[str] = Form(None),
+                      description: Optional[str] = Form(None),
                       pin_id: int = Form(...),
                       media: UploadFile = File(...)
                       ):

@@ -67,11 +67,16 @@ class User(Base):
     following = relationship("Follow", foreign_keys=[Follow.follower_id], back_populates="follower")
     followers = relationship("Follow", foreign_keys=[Follow.following_id], back_populates="following")
     messages = relationship("Message", back_populates="sender")
+<<<<<<< HEAD
     pins = relationship("Pin", back_populates="user")
+=======
+>>>>>>> e851a6a12884bef26425bc8c3749cacbea4e8407
+    favorite_categories = relationship("FavoriteCategory", back_populates="user")
 
 class Pin(Base):
     __tablename__ = "pins"
     id = Column(Integer, primary_key=True, index=True)
+    slug = Column(String, unique=True, nullable=False)
     title = Column(String, nullable=False)
     coordinates = Column(Geometry(geometry_type='POINT', srid=4326))
     description = Column(String, nullable=True)
@@ -82,13 +87,11 @@ class Pin(Base):
     posts_count = Column(Integer, default=0)
     cost = Column(String, nullable=True)
     view_count = Column(Integer, default=0)
-    created_by = Column(Integer, ForeignKey("users.id"))
 
     __table_args__ = (
         UniqueConstraint("coordinates", name="unique_pin_coordinates"),
     )
 
-    user = relationship("User", back_populates="pins")
     wishlists = relationship("Wishlist", back_populates="pin")
     visits = relationship("Visit", back_populates="pin")
     categories = relationship("PinCategory", back_populates="pin")
@@ -115,11 +118,25 @@ class Category(Base):
     __tablename__ = "categories"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String, unique=True, nullable=False)
-    description = Column(String, nullable=True)
     location_count = Column(Integer, default=0)
     post_count = Column(Integer, default=0)
     requests = relationship("RequestCategory", back_populates="category")
     pins = relationship("PinCategory", back_populates="category")
+    favorite_categories = relationship("FavoriteCategory", back_populates="category")
+
+class FavoriteCategory(Base):
+    __tablename__ = "favorite_categories"
+<<<<<<< HEAD
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    category_id = Column(Integer, ForeignKey("categories.id"), primary_key=True)
+    user = relationship("User", back_populates="favorite_categories")
+    category = relationship("Category", back_populates="favorite_categories")
+=======
+    category_id = Column(Integer, ForeignKey("categories.id"), primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    category = relationship("Category", back_populates="favorite_categories")
+    user = relationship("User", back_populates="favorite_categories")
+>>>>>>> e851a6a12884bef26425bc8c3749cacbea4e8407
 
 class PinCategory(Base):
     __tablename__ = "pin_categories"

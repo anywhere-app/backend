@@ -19,16 +19,20 @@ class TokenData(BaseModel):
     username: Optional[str] = None
 
 class PinRequest(BaseModel):
+    slug: str
     title: str
     lon: float
     lat: float
     description: Optional[str] = None
     cost: Optional[str] = None
-    category_ids: Optional[List[int]] = None
+    category_ids: List[int]
 
 class CategoryRequest(BaseModel):
     name: str
-    description: Optional[str] = None
+
+class CategoryResponse(BaseSchema):
+    id: int
+    name: str
 
 class HangoutRequest(BaseModel):
     title: str
@@ -56,27 +60,55 @@ class UserResponse(BaseSchema):
     id: int
     username: str
     email: str
-    bio: str | None = None
-    pfp_url: str | None = None
+    bio: Optional[str] = None
+    pfp_url: Optional[str] = None
+    favortie_categories: Optional[List[str]] = None
     follower_count: int
     following_count: int
     posts_count: int
     likes_count: int
     visited_count: int
+    favorite_categories: List[CategoryResponse] = []
     created_at: datetime
     updated_at: datetime
     is_admin: bool
     is_suspended: bool
-    suspended_at: datetime | None = None
-    suspended_until: datetime | None = None
-    suspended_reason: str | None = None
+    suspended_at: Optional[datetime] = None
+    suspended_until: Optional[datetime] = None
+    suspended_reason: Optional[str] = None
+
+class SimpleUserResponse(BaseSchema):
+    id: int
+    username: str
+    bio: Optional[str] = None
+    pfp_url: Optional[str] = None
+    follower_count: int
+    following_count: int
+    posts_count: int
+    likes_count: int
+    visited_count: int
+    favorite_category_names: Optional[List[str]] = None
+
+class SimpleUserResponse(BaseSchema):
+    id: int
+    username: str
+    pfp_url: str | None = None
+    bio: str | None = None
+    follower_count: int
+    following_count: int
+    posts_count: int
+    likes_count: int
+    visited_count: int
+    favorite_categories: List[CategoryResponse] = []
+    isSuspended: bool
 
 class PinResponse(BaseSchema):
+    slug: str
     title: str
-    description: str | None
+    description: Optional[str] = None
     coordinates: Dict[str, Any]
-    categories: List[int]
-    cost: float | None
+    categories: List[str]
+    cost: Optional[str] = None
     post_count: int
 
 class FollowResponse(BaseSchema):
