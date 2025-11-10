@@ -67,10 +67,7 @@ class User(Base):
     following = relationship("Follow", foreign_keys=[Follow.follower_id], back_populates="follower")
     followers = relationship("Follow", foreign_keys=[Follow.following_id], back_populates="following")
     messages = relationship("Message", back_populates="sender")
-<<<<<<< HEAD
     pins = relationship("Pin", back_populates="user")
-=======
->>>>>>> e851a6a12884bef26425bc8c3749cacbea4e8407
     favorite_categories = relationship("FavoriteCategory", back_populates="user")
 
 class Pin(Base):
@@ -126,17 +123,10 @@ class Category(Base):
 
 class FavoriteCategory(Base):
     __tablename__ = "favorite_categories"
-<<<<<<< HEAD
-    user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
-    category_id = Column(Integer, ForeignKey("categories.id"), primary_key=True)
-    user = relationship("User", back_populates="favorite_categories")
-    category = relationship("Category", back_populates="favorite_categories")
-=======
     category_id = Column(Integer, ForeignKey("categories.id"), primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), primary_key=True)
     category = relationship("Category", back_populates="favorite_categories")
     user = relationship("User", back_populates="favorite_categories")
->>>>>>> e851a6a12884bef26425bc8c3749cacbea4e8407
 
 class PinCategory(Base):
     __tablename__ = "pin_categories"

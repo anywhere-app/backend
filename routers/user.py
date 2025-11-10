@@ -1,20 +1,13 @@
 from datetime import datetime, UTC
 from threading import active_count
-
 from fastapi import APIRouter, Depends, HTTPException
 from typing import Annotated, List
-
 from sqlalchemy import select
-
 from database import SessionLocal
 from starlette import status
 from sqlalchemy.orm import Session, joinedload, selectinload
 from models import Pin, Visit, Wishlist, User, Follow, Comment, Post, FavoriteCategory
-<<<<<<< HEAD
 from schemas import UserResponse, FollowResponse, SuspensionRequest, SimpleUserResponse
-=======
-from schemas import UserResponse, FollowResponse, SuspensionRequest
->>>>>>> e851a6a12884bef26425bc8c3749cacbea4e8407
 from routers.auth import get_current_user
 from routers.posts import serialize_post, serialize_comment
 from geoalchemy2.elements import WKTElement
@@ -41,11 +34,7 @@ user_dependency = Annotated[dict, Depends(get_current_user)]
 async def get_user(db: db_dependency, user: user_dependency):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-<<<<<<< HEAD
     result = db.execute(
-=======
-    result = await db.execute(
->>>>>>> e851a6a12884bef26425bc8c3749cacbea4e8407
         select(User)
         .where(User.id == user["id"])
         .options(
@@ -53,7 +42,6 @@ async def get_user(db: db_dependency, user: user_dependency):
         )
     )
     account = result.scalars().first()
-<<<<<<< HEAD
     return account
 @router.get("/all", response_model=List[SimpleUserResponse])
 async def get_all_users(db: db_dependency):
@@ -67,10 +55,6 @@ async def get_all_users(db: db_dependency):
     if not users:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No users found")
     return users
-=======
-    if not account:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    return account
 @router.get("/all", response_model=List[UserResponse])
 async def get_all_users(db: db_dependency):
     users = db.query(User).all()
@@ -83,7 +67,6 @@ async def get_all_users(db: db_dependency):
     )
     accounts = result.scalars().all()
     return accounts
->>>>>>> e851a6a12884bef26425bc8c3749cacbea4e8407
 
 @router.get("/wishlist")
 async def get_wishlist(db: db_dependency, user: user_dependency):
