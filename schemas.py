@@ -29,7 +29,10 @@ class PinRequest(BaseModel):
 
 class CategoryRequest(BaseModel):
     name: str
-    description: Optional[str] = None
+
+class CategoryResponse(BaseSchema):
+    id: int
+    name: str
 
 class HangoutRequest(BaseModel):
     title: str
@@ -65,6 +68,7 @@ class UserResponse(BaseSchema):
     posts_count: int
     likes_count: int
     visited_count: int
+    favorite_categories: List[CategoryResponse] = []
     created_at: datetime
     updated_at: datetime
     is_admin: bool
@@ -76,14 +80,15 @@ class UserResponse(BaseSchema):
 class SimpleUserResponse(BaseSchema):
     id: int
     username: str
-    bio: Optional[str] = None
-    pfp_url: Optional[str] = None
+    pfp_url: str | None = None
+    bio: str | None = None
     follower_count: int
     following_count: int
     posts_count: int
     likes_count: int
     visited_count: int
-    favorite_category_names: Optional[List[str]] = None
+    favorite_categories: List[CategoryResponse] = []
+    isSuspended: bool
 
 class PinResponse(BaseSchema):
     slug: str
