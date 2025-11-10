@@ -23,7 +23,7 @@ ALGORITHM = os.getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/token")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/token")
 
 def get_db():
     db = SessionLocal()
@@ -39,6 +39,8 @@ async def create_user(db: db_dependency, create_user_request: CreateUserRequest)
     user = db.query(User).filter(User.email == create_user_request.email).first()
     if user:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email already registered")
+    if len(CreateUserRequest.password) < 8:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Password must be at least 8 characters")
 
     create_user_model = User(
         email=create_user_request.email,
