@@ -1,10 +1,15 @@
 from datetime import datetime, UTC
+from threading import active_count
+
 from fastapi import APIRouter, Depends, HTTPException
-from typing import Annotated
+from typing import Annotated, List
+
+from sqlalchemy import select
+
 from database import SessionLocal
 from starlette import status
-from sqlalchemy.orm import Session, joinedload
-from models import Pin, Visit, Wishlist, User, Follow, Comment, Post
+from sqlalchemy.orm import Session, joinedload, selectinload
+from models import Pin, Visit, Wishlist, User, Follow, Comment, Post, FavoriteCategory
 from schemas import UserResponse, FollowResponse, SuspensionRequest
 from routers.auth import get_current_user
 from routers.posts import serialize_post, serialize_comment
@@ -32,10 +37,29 @@ user_dependency = Annotated[dict, Depends(get_current_user)]
 async def get_user(db: db_dependency, user: user_dependency):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    account = db.query(User).filter(User.id == user["id"]).first()
+    result = await db.execute(
+        select(User)
+        .where(User.id == user["id"])
+        .options(
+            selectinload(User.favorite_categories).selectinload(FavoriteCategory.category)
+        )
+    )
+    account = result.scalars().first()
     if not account:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
     return account
+@router.get("/all", response_model=List[UserResponse])
+async def get_all_users(db: db_dependency):
+    users = db.query(User).all()
+    if not users:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No users found")
+
+    result = db.execute(
+        select(User)
+        .options(selectinload(User.favorite_categories).selectinload(FavoriteCategory.category))
+    )
+    accounts = result.scalars().all()
+    return accounts
 
 @router.get("/wishlist")
 async def get_wishlist(db: db_dependency, user: user_dependency):
