@@ -59,6 +59,7 @@ class UserResponse(BaseSchema):
     email: str
     bio: Optional[str] = None
     pfp_url: Optional[str] = None
+    favortie_categories: Optional[List[str]] = None
     follower_count: int
     following_count: int
     posts_count: int
@@ -71,6 +72,18 @@ class UserResponse(BaseSchema):
     suspended_at: Optional[datetime] = None
     suspended_until: Optional[datetime] = None
     suspended_reason: Optional[str] = None
+
+class SimpleUserResponse(BaseSchema):
+    id: int
+    username: str
+    bio: Optional[str] = None
+    pfp_url: Optional[str] = None
+    follower_count: int
+    following_count: int
+    posts_count: int
+    likes_count: int
+    visited_count: int
+    favorite_category_names: Optional[List[str]] = None
 
 class PinResponse(BaseSchema):
     slug: str
