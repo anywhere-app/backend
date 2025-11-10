@@ -64,5 +64,25 @@ async def favorite_category(id: int, db: db_dependency, user: user_dependency):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
 
     new_favorite_category = FavoriteCategory(
-
+        user_id=user["id"],
+        category_id=id
     )
+    db.add(new_favorite_category)
+    db.commit()
+    db.refresh(new_favorite_category)
+    return {"detail": "Category favorited successfully"}
+@router.delete("/{id}/favorite", status_code=status.HTTP_200_OK)
+async def unfavorite_category(id: int, db: db_dependency, user: user_dependency):
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    favorite_category = db.query(FavoriteCategory).filter(
+        FavoriteCategory.user_id == user["id"],
+        FavoriteCategory.category_id == id
+    ).first()
+    if not favorite_category:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Favorite category not found")
+
+    db.delete(favorite_category)
+    db.commit()
+    return {"detail": "Category unfavorited successfully"}
