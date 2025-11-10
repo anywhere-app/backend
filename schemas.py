@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_serializer
 from typing import List, Optional, Dict, Any
 
 
@@ -77,6 +77,10 @@ class UserResponse(BaseSchema):
     suspended_until: Optional[datetime] = None
     suspended_reason: Optional[str] = None
 
+    @field_serializer('favorite_categories')
+    def serialize_favorite_categories(self, favorite_categories, _info):
+        return [fc.category for fc in favorite_categories]
+
 class SimpleUserResponse(BaseSchema):
     id: int
     username: str
@@ -88,7 +92,11 @@ class SimpleUserResponse(BaseSchema):
     likes_count: int
     visited_count: int
     favorite_categories: List[CategoryResponse] = []
-    isSuspended: bool
+    is_suspended: bool
+
+    @field_serializer('favorite_categories')
+    def serialize_favorite_categories(self, favorite_categories, _info):
+        return [fc.category for fc in favorite_categories]
 
 class PinResponse(BaseSchema):
     slug: str
