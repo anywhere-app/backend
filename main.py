@@ -20,33 +20,3 @@ app.include_router(categories.router, prefix="/api")
 app.include_router(user.router, prefix="/api")
 app.include_router(hangouts.router, prefix="/api")
 app.include_router(posts.router, prefix="/api")
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-
-db_dependency = Annotated[Session, Depends(get_db)]
-user_dependency = Annotated[dict, Depends(get_current_user)]
-
-
-@app.get("/")
-async def root(user: user_dependency | None = None):
-    if user:
-        return {"message": f"Hello, {user['username']}!"}
-    return {"message": "Hello, World!"}
-
-
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket, db: db_dependency):
-    await websocket.accept()
-    try:
-        while True:
-            data = await websocket.receive_text()
-            await websocket.send_text(f"Message text was: {data}")
-    except Exception as e:
-        print(f"WebSocket error: {e}")
-    finally:
-        await websocket.close()
