@@ -67,7 +67,6 @@ class User(Base):
     following = relationship("Follow", foreign_keys=[Follow.follower_id], back_populates="follower")
     followers = relationship("Follow", foreign_keys=[Follow.following_id], back_populates="following")
     messages = relationship("Message", back_populates="sender")
-    pins = relationship("Pin", back_populates="user")
     favorite_categories = relationship("FavoriteCategory", back_populates="user")
 
 class Pin(Base):
