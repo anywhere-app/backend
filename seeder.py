@@ -40,7 +40,6 @@ try:
 
         db.add(Category(
             name=name,
-            description=description,
         ))
     db.commit()
 
@@ -56,6 +55,7 @@ try:
         latitude, longitude = generate_bratislava_coordinates()
 
         pin = Pin(
+            slug=title.lower().replace(" ", "_"),
             title=title,
             coordinates=f'POINT({longitude} {latitude})',
             description=description,
@@ -64,7 +64,6 @@ try:
             visit_count=random.randint(0, 50),
             posts_count=random.randint(0, 20),
             view_count=random.randint(0, 500),
-            created_by=None
         )
         db.add(pin)
         db.flush()  # Get the pin ID

@@ -61,7 +61,7 @@ async def get_all_pins(db: db_dependency):
     ]
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=PinResponse)
-async def create_pin(db: db_dependency, pin: PinRequest, user: user_dependency):
+async def create_pin(db: db_dependency, pin: PinRequest, user: user_dependency, media: UploadFile = File(...)):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     if not user["is_admin"]:
@@ -72,12 +72,33 @@ async def create_pin(db: db_dependency, pin: PinRequest, user: user_dependency):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid coordinates")
     if db.query(Pin).filter(Pin.coordinates.like(WKTElement(f"POINT({pin.lon} {pin.lat})", srid=4326))).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pin with these coordinates already exists")
+    user_dir = MEDIA_DIR / str(user["id"])
+    user_dir.mkdir(parents=True, exist_ok=True)
+
+    ext = os.path.splitext(media.filename)[1]
+    unique_name = f"{uuid.uuid4().hex}{ext}"
+    file_path = user_dir / unique_name
+    file_size = 0
+    max_size = 20 * 1024 * 1024
+
+    with open(file_path, "wb") as f:
+        while chunk := await media.read(1024 * 1024):  # 1MB chunks
+            file_size += len(chunk)
+            if file_size > max_size:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"File too large. Max size: {max_size / (1024 * 1024):.0f}MB"
+                )
+            f.write(chunk)
+
+    media_url = f"/media/{user['id']}/{unique_name}"
     created_pin = Pin(
         slug=pin.title.lower().replace(" ", "-"),
         title=pin.title or None,
         coordinates=WKTElement(f"POINT({pin.lon} {pin.lat})", srid=4326),
         description=pin.description or None,
         cost=pin.cost or None,
+        title_image=media_url,
     )
     db.add(created_pin)
     db.commit()
