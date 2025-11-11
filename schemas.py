@@ -19,7 +19,6 @@ class TokenData(BaseModel):
     username: Optional[str] = None
 
 class PinRequest(BaseModel):
-    slug: str
     title: str
     lon: float
     lat: float
@@ -99,6 +98,7 @@ class SimpleUserResponse(BaseSchema):
         return [fc.category for fc in favorite_categories]
 
 class PinResponse(BaseSchema):
+    id: int
     slug: str
     title: str
     description: Optional[str] = None

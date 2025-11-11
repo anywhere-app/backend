@@ -73,6 +73,7 @@ async def create_pin(db: db_dependency, pin: PinRequest, user: user_dependency):
     if db.query(Pin).filter(Pin.coordinates.like(WKTElement(f"POINT({pin.lon} {pin.lat})", srid=4326))).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pin with these coordinates already exists")
     created_pin = Pin(
+        slug=pin.title.lower().replace(" ", "-"),
         title=pin.title or None,
         coordinates=WKTElement(f"POINT({pin.lon} {pin.lat})", srid=4326),
         description=pin.description or None,
@@ -280,7 +281,6 @@ async def approve_location_request(request_id: int,
         description=request.description,
         coordinates=request.location,
         cost=request.cost,
-        created_by=request.user_id,
     )
     db.add(new_pin)
     db.commit()
@@ -301,7 +301,7 @@ async def approve_location_request(request_id: int,
     pin = new_pin
     return {
         "id": pin.id,
-            "slug": pin.slug,
+        "slug": pin.title.lower().replace(" ", "-"),
             "title": pin.title,
             "description": pin.description,
             "coordinates": mapping(to_shape(pin.coordinates)),
@@ -314,7 +314,14 @@ async def approve_location_request(request_id: int,
 
 
 @router.get("/{pin_slug_or_id}", response_model=PinResponse)
-async def get_pin_by_id(db: db_dependency, pin_slug: Optional[str] = None, pin_id: Optional[int] = None):
+async def get_pin_by_id(db: db_dependency, pin_id_or_slug: str):
+    try:
+        pin_id = int(pin_id_or_slug)
+        pin_slug = None
+    except ValueError:
+        pin_id = None
+        pin_slug = pin_id_or_slug
+
     if not pin_id or not pin_slug:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pin ID or slug is required")
 
