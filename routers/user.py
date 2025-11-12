@@ -7,7 +7,7 @@ from database import SessionLocal
 from starlette import status
 from sqlalchemy.orm import Session, joinedload, selectinload
 from models import Pin, Visit, Wishlist, User, Follow, Comment, Post, FavoriteCategory
-from schemas import UserResponse, FollowResponse, SuspensionRequest, SimpleUserResponse
+from schemas import UserResponse, FollowResponse, SuspensionRequest, SimpleUserResponse, UserUpdateRequest
 from routers.auth import get_current_user
 from routers.posts import serialize_post, serialize_comment
 from geoalchemy2.elements import WKTElement
@@ -43,6 +43,22 @@ async def get_user(db: db_dependency, user: user_dependency):
     )
     account = result.scalars().first()
     return account
+@router.put("/", response_model=UserResponse)
+async def update_user(db: db_dependency, user: user_dependency, updated_user: UserUpdateRequest):
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
+    account = db.query(User).filter(User.id == user["id"]).first()
+    if updated_user.username is not None:
+        account.username = updated_user.username
+    if updated_user.bio is not None:
+        account.bio = updated_user.bio
+    if updated_user.profile_picture is not None:
+        account.profile_picture = updated_user.profile_picture
+    db.commit()
+    db.refresh(account)
+    return account
+
 @router.get("/all", response_model=List[SimpleUserResponse])
 async def get_all_users(db: db_dependency):
     result = db.execute(

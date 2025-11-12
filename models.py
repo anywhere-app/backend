@@ -42,19 +42,23 @@ class User(Base):
     hashed_password = Column(String)
     bio = Column(String, nullable=True)
     pfp_url = Column(String, nullable=True)
+
     follower_count = Column(Integer, default=0)
     following_count = Column(Integer, default=0)
     posts_count = Column(Integer, default=0)
     likes_count = Column(Integer, default=0)
     visited_count = Column(Integer, default=0)
+
     created_at = Column(DateTime(timezone=True), default=func.now())
+    last_seen_at = Column(DateTime, default=datetime.datetime.now(datetime.UTC))
     updated_at = Column(DateTime(timezone=True), default=func.now(), onupdate=func.now())
+
     is_suspended = Column(Boolean, default=False)
     suspended_at = Column(DateTime, nullable=True)
     suspended_until = Column(DateTime, nullable=True)
     suspended_reason = Column(String, nullable=True)
     is_admin = Column(Boolean, default=False)
-    last_seen_at = Column(DateTime, default=datetime.datetime.now(datetime.UTC))
+
     wishlists = relationship("Wishlist", back_populates="user")
     visits = relationship("Visit", back_populates="user")
     location_requests = relationship("LocationRequest", back_populates="user")

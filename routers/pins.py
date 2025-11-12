@@ -66,7 +66,8 @@ async def create_pin(db: db_dependency, user: user_dependency,
                      title: str = Form(...),
                      description: str = Form(...),
                      cost: str = Form(...),
-                     lon: float = Form(...), lat: float = Form(...),
+                     lat: float = Form(...),
+                     lon: float = Form(...),
                      category_ids: Optional[str] = Form(None),
                      media: UploadFile = File(...)):
     if not user:
