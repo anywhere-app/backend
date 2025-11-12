@@ -61,16 +61,22 @@ async def get_all_pins(db: db_dependency):
     ]
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=PinResponse)
-async def create_pin(db: db_dependency, pin: PinRequest, user: user_dependency, media: UploadFile = File(...)):
+async def create_pin(db: db_dependency, user: user_dependency,
+                     title: str = Form(...),
+                     description: str = Form(...),
+                     cost: str = Form(...),
+                     lon: float = Form(...), lat: float = Form(...),
+                     category_ids: Optional[str] = Form(None),
+                     media: UploadFile = File(...)):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     if not user["is_admin"]:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
-    if not pin.title or not pin.lon or not pin.lat:
+    if not title or not lon or not lat:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Title, longitude, and latitude are required")
-    if pin.lon < -180 or pin.lon > 180 or pin.lat < -90 or pin.lat > 90:
+    if lon < -180 or lon > 180 or lat < -90 or lat > 90:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid coordinates")
-    if db.query(Pin).filter(Pin.coordinates.like(WKTElement(f"POINT({pin.lon} {pin.lat})", srid=4326))).first():
+    if db.query(Pin).filter(Pin.coordinates.like(WKTElement(f"POINT({lon} {lat})", srid=4326))).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pin with these coordinates already exists")
     user_dir = MEDIA_DIR / str(user["id"])
     user_dir.mkdir(parents=True, exist_ok=True)
@@ -93,18 +99,18 @@ async def create_pin(db: db_dependency, pin: PinRequest, user: user_dependency, 
 
     media_url = f"/media/{user['id']}/{unique_name}"
     created_pin = Pin(
-        slug=pin.title.lower().replace(" ", "-"),
-        title=pin.title or None,
-        coordinates=WKTElement(f"POINT({pin.lon} {pin.lat})", srid=4326),
-        description=pin.description or None,
-        cost=pin.cost or None,
+        slug=title.lower().replace(" ", "-"),
+        title=title or None,
+        coordinates=WKTElement(f"POINT({lon} {lat})", srid=4326),
+        description=description or None,
+        cost=cost or None,
         title_image_url=media_url,
     )
     db.add(created_pin)
     db.commit()
     db.refresh(created_pin)
-    if pin.category_ids:
-        for category in pin.category_ids:
+    if category_ids:
+        for category in category_ids:
             pin_category = PinCategory(
                 pin_id=created_pin.id,
                 category_id=category
