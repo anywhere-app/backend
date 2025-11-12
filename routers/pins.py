@@ -98,7 +98,7 @@ async def create_pin(db: db_dependency, pin: PinRequest, user: user_dependency, 
         coordinates=WKTElement(f"POINT({pin.lon} {pin.lat})", srid=4326),
         description=pin.description or None,
         cost=pin.cost or None,
-        title_image=media_url,
+        title_image_url=media_url,
     )
     db.add(created_pin)
     db.commit()
@@ -114,17 +114,18 @@ async def create_pin(db: db_dependency, pin: PinRequest, user: user_dependency, 
 
     pin = created_pin
     return {
-            "id": pin.id,
-            "slug": pin.slug,
-            "title": pin.title,
-            "description": pin.description,
-            "coordinates": mapping(to_shape(pin.coordinates)),
-            "categories": [cat.category.name for cat in pin.categories],
-            "cost": pin.cost,
-            "post_count": pin.posts_count,
-            "created_at": pin.created_at,
-            "updated_at": pin.updated_at,
-        }
+        "id": pin.id,
+        "slug": pin.slug,
+        "title": pin.title,
+        "title_image_url": pin.title_image_url,
+        "description": pin.description,
+        "coordinates": mapping(to_shape(pin.coordinates)),
+        "categories": [cat.category.name for cat in pin.categories],
+        "cost": pin.cost,
+        "post_count": pin.posts_count,
+        "created_at": pin.created_at,
+        "updated_at": pin.updated_at,
+    }
 
 @router.get("/requests")
 async def get_location_requests(db: db_dependency, user: user_dependency):

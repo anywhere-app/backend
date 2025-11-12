@@ -101,6 +101,7 @@ class PinResponse(BaseSchema):
     id: int
     slug: str
     title: str
+    title_image_url: str
     description: Optional[str] = None
     coordinates: Dict[str, Any]
     categories: List[str]
