@@ -108,6 +108,10 @@ class PinResponse(BaseSchema):
     cost: Optional[str] = None
     post_count: int
 
+    @field_serializer('title_image_url')
+    def serialize_title_image_url(self, title_image_url, _info):
+        return f"https://api.anywhere.sk/{title_image_url}" if title_image_url else None
+
 class FollowResponse(BaseSchema):
     follower_id: int
     following_id: int
