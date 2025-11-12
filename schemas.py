@@ -120,3 +120,8 @@ class FollowResponse(BaseSchema):
 class SuspensionRequest(BaseModel):
     reason: str
     duration: Optional[timedelta] = None
+
+class UserUpdateRequest(BaseModel):
+    username: Optional[str] = None
+    bio: Optional[str] = None
+    pfp_url: Optional[str] = None
