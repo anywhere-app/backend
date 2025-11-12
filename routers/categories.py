@@ -41,8 +41,7 @@ async def create_category(db: db_dependency, cat: CategoryRequest, user: user_de
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Category already exists")
     slug = cat.name.lower().replace(" ", "-")
     new_category = Category(
-        name=cat.name,
-        slug=slug
+        name=cat.name
     )
     db.add(new_category)
     db.commit()
