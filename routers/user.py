@@ -79,7 +79,29 @@ async def update_user(db: db_dependency, user: user_dependency, updated_user: Us
         account.pfp_url = updated_user.pfp_url
     db.commit()
     db.refresh(account)
-    return account
+    return {
+        "id": account.id,
+        "username": account.username,
+        "email": account.email,
+        "bio": account.bio,
+        "pfp_url": account.pfp_url,
+        "favorite_categories": [
+            {"id": fc.category.id, "name": fc.category.name}
+            for fc in account.favorite_categories
+        ] if account.favorite_categories else [],
+        "follower_count": account.follower_count,
+        "following_count": account.following_count,
+        "posts_count": account.posts_count,
+        "likes_count": account.likes_count,
+        "visited_count": account.visited_count,
+        "created_at": account.created_at,
+        "updated_at": account.updated_at,
+        "is_admin": account.is_admin,
+        "is_suspended": account.is_suspended,
+        "suspended_at": account.suspended_at,
+        "suspended_until": account.suspended_until,
+        "suspended_reason": account.suspended_reason
+    }
 
 @router.get("/all", response_model=List[SimpleUserResponse])
 async def get_all_users(db: db_dependency):
