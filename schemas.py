@@ -61,7 +61,6 @@ class UserResponse(BaseSchema):
     email: str
     bio: Optional[str] = None
     pfp_url: Optional[str] = None
-    favortie_categories: Optional[List[str]] = None
     follower_count: int
     following_count: int
     posts_count: int
@@ -76,15 +75,6 @@ class UserResponse(BaseSchema):
     suspended_until: Optional[datetime] = None
     suspended_reason: Optional[str] = None
 
-    @model_validator(mode='before')
-    @classmethod
-    def extract_categories(cls, data):
-        if hasattr(data, 'favorite_categories'):
-            favorite_cats = data.favorite_categories
-            if favorite_cats:
-                data.favorite_categories = [fc.category for fc in favorite_cats]
-        return data
-
 class SimpleUserResponse(BaseSchema):
     id: int
     username: str
@@ -97,15 +87,6 @@ class SimpleUserResponse(BaseSchema):
     visited_count: int
     favorite_categories: Optional[List[CategoryResponse]] = None
     is_suspended: bool
-
-    @model_validator(mode='before')
-    @classmethod
-    def extract_categories(cls, data):
-        if hasattr(data, 'favorite_categories'):
-            favorite_cats = data.favorite_categories
-            if favorite_cats:
-                data.favorite_categories = [fc.category for fc in favorite_cats]
-        return data
 
 class PinResponse(BaseSchema):
     id: int

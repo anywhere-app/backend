@@ -42,7 +42,29 @@ async def get_user(db: db_dependency, user: user_dependency):
         )
     )
     account = result.scalars().first()
-    return account
+    return {
+        "id": account.id,
+        "username": account.username,
+        "email": account.email,
+        "bio": account.bio,
+        "pfp_url": account.pfp_url,
+        "favorite_categories": [
+            {"id": fc.category.id, "name": fc.category.name}
+            for fc in account.favorite_categories
+        ] if account.favorite_categories else [],
+        "follower_count": account.follower_count,
+        "following_count": account.following_count,
+        "posts_count": account.posts_count,
+        "likes_count": account.likes_count,
+        "visited_count": account.visited_count,
+        "created_at": account.created_at,
+        "updated_at": account.updated_at,
+        "is_admin": account.is_admin,
+        "is_suspended": account.is_suspended,
+        "suspended_at": account.suspended_at,
+        "suspended_until": account.suspended_until,
+        "suspended_reason": account.suspended_reason
+    }
 @router.put("/", response_model=UserResponse)
 async def update_user(db: db_dependency, user: user_dependency, updated_user: UserUpdateRequest):
     if not user:
@@ -70,7 +92,25 @@ async def get_all_users(db: db_dependency):
     users = result.scalars().all()
     if not users:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No users found")
-    return users
+    return [
+        {
+            "id": user.id,
+            "username": user.username,
+            "pfp_url": user.pfp_url,
+            "bio": user.bio,
+            "follower_count": user.follower_count,
+            "following_count": user.following_count,
+            "posts_count": user.posts_count,
+            "likes_count": user.likes_count,
+            "visited_count": user.visited_count,
+            "favorite_categories": [
+                {"id": fc.category.id, "name": fc.category.name}
+                for fc in user.favorite_categories
+            ] if user.favorite_categories else [],
+            "is_suspended": user.is_suspended
+        }
+        for user in users
+    ]
 @router.get("/all", response_model=List[UserResponse])
 async def get_all_users(db: db_dependency):
     users = db.query(User).all()
