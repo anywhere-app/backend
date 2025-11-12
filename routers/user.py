@@ -53,8 +53,8 @@ async def update_user(db: db_dependency, user: user_dependency, updated_user: Us
         account.username = updated_user.username
     if updated_user.bio is not None:
         account.bio = updated_user.bio
-    if updated_user.profile_picture is not None:
-        account.profile_picture = updated_user.profile_picture
+    if updated_user.pfp_url is not None:
+        account.pfp_url = updated_user.pfp_url
     db.commit()
     db.refresh(account)
     return account
