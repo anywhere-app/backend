@@ -66,7 +66,7 @@ async def create_pin(db: db_dependency, user: user_dependency,
                      description: str = Form(...),
                      cost: str = Form(...),
                      lon: float = Form(...), lat: float = Form(...),
-                     category_ids: Optional[int] = Form(None),
+                     category_ids: Optional[str] = Form(None),
                      media: UploadFile = File(...)):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -78,6 +78,15 @@ async def create_pin(db: db_dependency, user: user_dependency,
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid coordinates")
     if db.query(Pin).filter(Pin.coordinates.like(WKTElement(f"POINT({lon} {lat})", srid=4326))).first():
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pin with these coordinates already exists")
+
+    if media.content_type not in ["image/jpeg", "image/png", "image/gif", "video/mp4"]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file type. Allowed types: JPEG, PNG, GIF, MP4"
+        )
+
+    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+
     user_dir = MEDIA_DIR / str(user["id"])
     user_dir.mkdir(parents=True, exist_ok=True)
 
@@ -87,20 +96,32 @@ async def create_pin(db: db_dependency, user: user_dependency,
     file_size = 0
     max_size = 20 * 1024 * 1024
 
-    with open(file_path, "wb") as f:
-        while chunk := await media.read(1024 * 1024):  # 1MB chunks
-            file_size += len(chunk)
-            if file_size > max_size:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"File too large. Max size: {max_size / (1024 * 1024):.0f}MB"
-                )
-            f.write(chunk)
+    try:
+        with open(file_path, "wb") as f:
+            while chunk := await media.read(1024 * 1024):
+                file_size += len(chunk)
+                if file_size > max_size:
+                    f.close()
+                    file_path.unlink(missing_ok=True)
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=f"File too large. Max size: {max_size / (1024 * 1024):.0f}MB"
+                    )
+                f.write(chunk)
+    except HTTPException:
+        raise
+    except Exception as e:
+        if file_path.exists():
+            file_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to save file: {str(e)}"
+        )
 
     media_url = f"/media/{user['id']}/{unique_name}"
     created_pin = Pin(
         slug=title.lower().replace(" ", "-"),
-        title=title or None,
+        title=title,
         coordinates=WKTElement(f"POINT({lon} {lat})", srid=4326),
         description=description or None,
         cost=cost or None,
@@ -109,14 +130,32 @@ async def create_pin(db: db_dependency, user: user_dependency,
     db.add(created_pin)
     db.commit()
     db.refresh(created_pin)
+
+    parsed_categories = []
     if category_ids:
-        for category in category_ids:
+        try:
+            import json
+            parsed_categories = json.loads(category_ids)
+            if isinstance(parsed_categories, int):
+                parsed_categories = [parsed_categories]
+            elif not isinstance(parsed_categories, list):
+                raise ValueError
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid category_ids format, expected JSON list like [1,2,3]"
+            )
+    if parsed_categories:
+        for category in parsed_categories:
+            if not isinstance(category, int):
+                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Category IDs must be integers")
             pin_category = PinCategory(
                 pin_id=created_pin.id,
                 category_id=category
             )
             db.add(pin_category)
         db.commit()
+        db.refresh(created_pin)
 
     pin = created_pin
     return {
