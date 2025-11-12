@@ -36,7 +36,7 @@ class CategoryResponse(BaseSchema):
 class HangoutRequest(BaseModel):
     title: str
     description: str
-    catering = Optional[str] = None
+    catering: Optional[str] = None
     pin_id: int
     expected_participants: Optional[int] = None
     max_participants: Optional[int]
