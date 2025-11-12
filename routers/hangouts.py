@@ -4,7 +4,7 @@ from database import SessionLocal
 from starlette import status
 from sqlalchemy.orm import Session, joinedload
 from models import Hangout, HangoutParticipant
-from schemas import HangoutRequest
+from schemas import HangoutRequest, HangoutUpdate
 from routers.auth import get_current_user
 from geoalchemy2.elements import WKTElement
 from geoalchemy2.shape import to_shape
@@ -33,7 +33,7 @@ async def get_all_hangouts(db: db_dependency):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No hangouts found")
     return [hangout for hangout in hangouts]
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED, response_model=HangoutRequest)
 async def create_hangout(db: db_dependency, hangout: HangoutRequest, user: user_dependency):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -41,6 +41,7 @@ async def create_hangout(db: db_dependency, hangout: HangoutRequest, user: user_
     create_hangout = Hangout(
         title=hangout.title,
         description=hangout.description,
+        catering=hangout.catering,
         pin_id=hangout.pin_id,
         creator_id=user["id"],
         expected_participants=hangout.expected_participants or None,
@@ -53,15 +54,15 @@ async def create_hangout(db: db_dependency, hangout: HangoutRequest, user: user_
     db.refresh(create_hangout)
     return create_hangout
 
-@router.get("/{hangout_id}")
+@router.get("/{hangout_id}", response_model=HangoutRequest)
 async def get_hangout(hangout_id: int, db: db_dependency):
     hangout = db.query(Hangout).filter(Hangout.id == hangout_id).first()
     if not hangout:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Hangout not found")
     return hangout
 
-@router.put("/{hangout_id}")
-async def update_hangout(hangout_id: int, updated_hangout: HangoutRequest, db: db_dependency, user: user_dependency):
+@router.put("/{hangout_id}", response_model=HangoutRequest)
+async def update_hangout(hangout_id: int, updated_hangout: HangoutUpdate, db: db_dependency, user: user_dependency):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     hangout = db.query(Hangout).filter(Hangout.id == hangout_id).first()
@@ -77,6 +78,7 @@ async def update_hangout(hangout_id: int, updated_hangout: HangoutRequest, db: d
     hangout.max_participants = updated_hangout.max_participants or hangout.max_participants
     hangout.start_time = updated_hangout.start_time or hangout.start_time
     hangout.duration = updated_hangout.duration or hangout.duration
+    hangout.catering = updated_hangout.catering or hangout.catering
 
     db.commit()
     db.refresh(hangout)
