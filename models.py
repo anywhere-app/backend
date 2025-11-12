@@ -178,6 +178,7 @@ class Hangout(Base):
     creator_id = Column(Integer, ForeignKey("users.id"))
     title = Column(String, nullable=False)
     description = Column(String, nullable=False)
+    catering = Column(String, nullable=True)
     pin_id = Column(Integer, ForeignKey("pins.id"))
     expected_participants = Column(Integer, nullable=True)
     max_participants = Column(Integer, nullable=False)
