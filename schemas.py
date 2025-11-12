@@ -1,5 +1,5 @@
 from datetime import datetime, timedelta
-from pydantic import BaseModel, ConfigDict, field_serializer
+from pydantic import BaseModel, ConfigDict, field_serializer, model_validator
 from typing import List, Optional, Dict, Any
 
 
@@ -76,17 +76,14 @@ class UserResponse(BaseSchema):
     suspended_until: Optional[datetime] = None
     suspended_reason: Optional[str] = None
 
-    @field_serializer('favorite_categories')
-    def serialize_favorite_categories(self, favorite_categories, _info):
-        if not favorite_categories:
-            return []
-        return [
-            {
-                'id': fc.category.id,
-                'name': fc.category.name
-            }
-            for fc in favorite_categories
-        ]
+    @model_validator(mode='before')
+    @classmethod
+    def extract_categories(cls, data):
+        if hasattr(data, 'favorite_categories'):
+            favorite_cats = data.favorite_categories
+            if favorite_cats:
+                data.favorite_categories = [fc.category for fc in favorite_cats]
+        return data
 
 class SimpleUserResponse(BaseSchema):
     id: int
@@ -101,17 +98,14 @@ class SimpleUserResponse(BaseSchema):
     favorite_categories: Optional[List[CategoryResponse]] = None
     is_suspended: bool
 
-    @field_serializer('favorite_categories')
-    def serialize_favorite_categories(self, favorite_categories, _info):
-        if not favorite_categories:
-            return []
-        return [
-            {
-                'id': fc.category.id,
-                'name': fc.category.name
-            }
-            for fc in favorite_categories
-        ]
+    @model_validator(mode='before')
+    @classmethod
+    def extract_categories(cls, data):
+        if hasattr(data, 'favorite_categories'):
+            favorite_cats = data.favorite_categories
+            if favorite_cats:
+                data.favorite_categories = [fc.category for fc in favorite_cats]
+        return data
 
 class PinResponse(BaseSchema):
     id: int
