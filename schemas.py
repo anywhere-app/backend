@@ -67,7 +67,7 @@ class UserResponse(BaseSchema):
     posts_count: int
     likes_count: int
     visited_count: int
-    favorite_categories: List[CategoryResponse] = []
+    favorite_categories: Optional[List[CategoryResponse]] = []
     created_at: datetime
     updated_at: datetime
     is_admin: bool
@@ -90,7 +90,7 @@ class SimpleUserResponse(BaseSchema):
     posts_count: int
     likes_count: int
     visited_count: int
-    favorite_categories: List[CategoryResponse] = []
+    favorite_categories: Optional[List[CategoryResponse]] = []
     is_suspended: bool
 
     @field_serializer('favorite_categories')
