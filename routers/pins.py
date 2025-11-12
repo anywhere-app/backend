@@ -66,7 +66,7 @@ async def create_pin(db: db_dependency, user: user_dependency,
                      description: str = Form(...),
                      cost: str = Form(...),
                      lon: float = Form(...), lat: float = Form(...),
-                     category_ids: Optional[str] = Form(None),
+                     category_ids: Optional[int] = Form(None),
                      media: UploadFile = File(...)):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
