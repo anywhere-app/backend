@@ -4,10 +4,12 @@ from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from typing import Annotated, Optional
 from fastapi.params import Form
+from sqlalchemy import select
+
 from database import SessionLocal
 from starlette import status
 from sqlalchemy.orm import Session, joinedload
-from models import Pin, LocationRequest, PinCategory, RequestMedia, RequestCategory
+from models import Pin, LocationRequest, PinCategory, RequestMedia, RequestCategory, Wishlist
 from schemas import PinRequest, PinResponse
 from routers.auth import get_current_user
 from geoalchemy2.elements import WKTElement
@@ -36,13 +38,29 @@ MEDIA_DIR = Path(os.getenv("MEDIA_DIR"))
 
 
 @router.get("/", response_model=list[PinResponse])
-async def get_all_pins(db: db_dependency):
+async def get_all_pins(db: db_dependency, user: Optional[dict] = Depends(get_current_user)):
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
     pins = db.query(Pin).options(
         joinedload(Pin.categories).joinedload(PinCategory.category)
     ).all()
 
     if not pins:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No pins found")
+
+    pin_ids = [pin.id for pin in pins]
+    wishlisted_pins = None
+    if user:
+        wishlisted_pins = set(
+            db.execute(
+                select(Wishlist.pin_id)
+                .where(
+                    Wishlist.pin_id.in_(pin_ids),
+                    Wishlist.user_id == user["id"]
+                )
+            ).scalars().all()
+        )
 
     return [
         {
@@ -54,6 +72,7 @@ async def get_all_pins(db: db_dependency):
             "coordinates": mapping(to_shape(pin.coordinates)),
             "categories": [cat.category.name for cat in pin.categories],
             "cost": pin.cost,
+            "is_wishlisted": pin.id in wishlisted_pins,
             "post_count": pin.posts_count,
             "created_at": pin.created_at,
             "updated_at": pin.updated_at,
@@ -383,7 +402,7 @@ async def approve_location_request(request_id: int,
 
 
 @router.get("/{pin_slug_or_id}", response_model=PinResponse)
-async def get_pin_by_id(db: db_dependency, pin_id_or_slug: str):
+async def get_pin_by_id(db: db_dependency, pin_id_or_slug: str, user: Optional[dict] = Depends(get_current_user)):
     try:
         pin_id = int(pin_id_or_slug)
         pin_slug = None
@@ -402,6 +421,18 @@ async def get_pin_by_id(db: db_dependency, pin_id_or_slug: str):
     if not pin:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pin not found")
 
+    in_wishlist = False
+    if user:
+        item = db.execute(
+            select(Wishlist.pin_id)
+            .where(
+                Wishlist.pin_id == pin.id,
+                Wishlist.user_id == user["id"]
+            )
+        ).scalars().all()
+        if item:
+            in_wishlist = True
+
     return {
         "id": pin.id,
         "slug": pin.slug,
@@ -411,6 +442,7 @@ async def get_pin_by_id(db: db_dependency, pin_id_or_slug: str):
         "coordinates": mapping(to_shape(pin.coordinates)),
         "categories": [cat.category.name for cat in pin.categories],
         "cost": pin.cost,
+        "is_wishlisted": in_wishlist,
         "post_count": pin.posts_count,
         "created_at": pin.created_at,
         "updated_at": pin.updated_at,
