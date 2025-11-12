@@ -78,7 +78,15 @@ class UserResponse(BaseSchema):
 
     @field_serializer('favorite_categories')
     def serialize_favorite_categories(self, favorite_categories, _info):
-        return [fc.category for fc in favorite_categories]
+        if not favorite_categories:
+            return []
+        return [
+            {
+                'id': fc.category.id,
+                'name': fc.category.name
+            }
+            for fc in favorite_categories
+        ]
 
 class SimpleUserResponse(BaseSchema):
     id: int
@@ -95,7 +103,15 @@ class SimpleUserResponse(BaseSchema):
 
     @field_serializer('favorite_categories')
     def serialize_favorite_categories(self, favorite_categories, _info):
-        return [fc.category for fc in favorite_categories]
+        if not favorite_categories:
+            return []
+        return [
+            {
+                'id': fc.category.id,
+                'name': fc.category.name
+            }
+            for fc in favorite_categories
+        ]
 
 class PinResponse(BaseSchema):
     id: int
