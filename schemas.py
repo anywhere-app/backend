@@ -101,6 +101,7 @@ class PinResponse(BaseSchema):
     cost: Optional[str] = None
     post_count: int
     is_wishlisted: Optional[bool] = None
+    is_visited: Optional[bool] = None
 
     @field_serializer('title_image_url')
     def serialize_title_image_url(self, title_image_url, _info):
