@@ -69,6 +69,7 @@ async def get_all_pins(db: db_dependency, user: Optional[dict] = Depends(get_cur
                     Visit.user_id == user["id"]
                 )
             )
+            .scalars().all()
         )
 
     return [
