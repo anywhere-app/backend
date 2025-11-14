@@ -5,11 +5,10 @@ from fastapi import APIRouter, Depends, HTTPException, File, UploadFile
 from typing import Annotated, Optional
 from fastapi.params import Form
 from sqlalchemy import select
-
 from database import SessionLocal
 from starlette import status
 from sqlalchemy.orm import Session, joinedload
-from models import Pin, LocationRequest, PinCategory, RequestMedia, RequestCategory, Wishlist
+from models import Pin, LocationRequest, PinCategory, RequestMedia, RequestCategory, Wishlist, Visit
 from schemas import PinRequest, PinResponse
 from routers.auth import get_current_user
 from geoalchemy2.elements import WKTElement
@@ -51,6 +50,7 @@ async def get_all_pins(db: db_dependency, user: Optional[dict] = Depends(get_cur
 
     pin_ids = [pin.id for pin in pins]
     wishlisted_pins = None
+    visited_pins = None
     if user:
         wishlisted_pins = set(
             db.execute(
@@ -60,6 +60,15 @@ async def get_all_pins(db: db_dependency, user: Optional[dict] = Depends(get_cur
                     Wishlist.user_id == user["id"]
                 )
             ).scalars().all()
+        )
+        visited_pins = set(
+            db.execute(
+                select(Visit.pin_id)
+                .where(
+                    Visit.pin_id.in_(pin_ids),
+                    Visit.user_id == user["id"]
+                )
+            )
         )
 
     return [
@@ -73,6 +82,7 @@ async def get_all_pins(db: db_dependency, user: Optional[dict] = Depends(get_cur
             "categories": [cat.category.name for cat in pin.categories],
             "cost": pin.cost,
             "is_wishlisted": pin.id in wishlisted_pins,
+            "is_visited": pin.id in visited_pins,
             "post_count": pin.posts_count,
             "created_at": pin.created_at,
             "updated_at": pin.updated_at,
