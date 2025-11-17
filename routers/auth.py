@@ -11,6 +11,8 @@ from jose import JWTError, jwt
 from schemas import CreateUserRequest, Token
 import os
 from dotenv import load_dotenv
+import redis
+import json
 
 router = APIRouter(
     prefix = "/auth",
@@ -21,6 +23,25 @@ load_dotenv()
 SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
+MAX_LOGIN_ATTEMPTS = 3
+LOCKOUT_DURATION_MINUTES = 15
+REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
+REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
+
+try:
+    redis_client = redis.Redis(
+        host=REDIS_HOST,
+        port=REDIS_PORT,
+        password=REDIS_PASSWORD,
+        decode_responses=True,
+        socket_connect_timeout=5
+    )
+    # Test connection
+    redis_client.ping()
+except redis.ConnectionError as e:
+    print(f"Redis connection failed: {e}")
+    redis_client = None
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/token")
@@ -33,6 +54,77 @@ def get_db():
         db.close()
 
 db_dependency = Annotated[Session, Depends(get_db)]
+
+
+def check_login_attempts(email: str):
+    if not redis_client:
+        return
+
+    key = f"login_attempts:{email}"
+
+    try:
+        data = redis_client.get(key)
+        if data:
+            attempts_data = json.loads(data)
+
+            if attempts_data.get("locked"):
+                ttl = redis_client.ttl(key)
+                if ttl > 0:
+                    time_remaining = ttl // 60
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail=f"Account temporarily locked. Try again in {time_remaining} minute(s)."
+                    )
+    except redis.RedisError as e:
+        print(f"Redis error in check_login_attempts: {e}")
+
+
+def record_failed_attempt(email: str):
+    if not redis_client:
+        return
+
+    key = f"login_attempts:{email}"
+
+    try:
+        data = redis_client.get(key)
+
+        if data:
+            attempts_data = json.loads(data)
+            attempts_data["count"] += 1
+        else:
+            attempts_data = {"count": 1, "locked": False}
+
+        if attempts_data["count"] >= MAX_LOGIN_ATTEMPTS:
+            attempts_data["locked"] = True
+            redis_client.setex(
+                key,
+                timedelta(minutes=LOCKOUT_DURATION_MINUTES),
+                json.dumps(attempts_data)
+            )
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Too many failed login attempts. Account locked for {LOCKOUT_DURATION_MINUTES} minutes."
+            )
+        else:
+            redis_client.setex(
+                key,
+                timedelta(hours=24),
+                json.dumps(attempts_data)
+            )
+    except redis.RedisError as e:
+        print(f"Redis error in record_failed_attempt: {e}")
+
+
+def clear_login_attempts(email: str):
+    if not redis_client:
+        return
+
+    key = f"login_attempts:{email}"
+
+    try:
+        redis_client.delete(key)
+    except redis.RedisError as e:
+        print(f"Redis error in clear_login_attempts: {e}")
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_user(db: db_dependency, create_user_request: CreateUserRequest):
@@ -51,14 +143,19 @@ async def create_user(db: db_dependency, create_user_request: CreateUserRequest)
     db.add(create_user_model)
     db.commit()
 
-@router.post("/token", response_model=Token)
+
 async def login_for_access_token(form_data: Annotated[OAuth2PasswordRequestForm, Depends()], db: db_dependency):
+    check_login_attempts(form_data.username)
     user = authenticate_user(form_data.username, form_data.password, db)
     if not user:
+        record_failed_attempt(form_data.username)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Incorrect email or password")
-    token = create_access_token(user.email, user.id, user.is_admin, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
 
+    clear_login_attempts(form_data.username)
+
+    token = create_access_token(user.email, user.id, user.is_admin, timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES))
     return {"access_token": token, "token_type": "bearer"}
+
 
 def authenticate_user(email: str, password: str, db):
     user = db.query(User).filter(User.email == email).first()
