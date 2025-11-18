@@ -412,22 +412,13 @@ async def approve_location_request(request_id: int,
     }
 
 
-@router.get("/{pin_slug_or_id}", response_model=PinResponse)
+@router.get("/{pin_id_or_slug}", response_model=PinResponse)
 async def get_pin_by_id(db: db_dependency, pin_id_or_slug: str, user: Optional[dict] = Depends(get_current_user)):
     try:
         pin_id = int(pin_id_or_slug)
-        pin_slug = None
-    except ValueError:
-        pin_id = None
-        pin_slug = pin_id_or_slug
-
-    if not pin_id or not pin_slug:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Pin ID or slug is required")
-
-    if pin_slug:
-        pin = db.query(Pin).filter(Pin.slug == pin_slug).first()
-    else:
         pin = db.query(Pin).filter(Pin.id == pin_id).first()
+    except ValueError:
+        pin = db.query(Pin).filter(Pin.slug == pin_id_or_slug).first()
 
     if not pin:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pin not found")

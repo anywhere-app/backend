@@ -24,7 +24,7 @@ SECRET_KEY = os.getenv("SECRET_KEY")
 ALGORITHM = os.getenv("ALGORITHM")
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", 30))
 MAX_LOGIN_ATTEMPTS = 3
-LOCKOUT_DURATION_MINUTES = 15
+LOCKOUT_DURATION_MINUTES = 1
 REDIS_HOST = os.getenv("REDIS_HOST", "localhost")
 REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
 REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
@@ -37,7 +37,6 @@ try:
         decode_responses=True,
         socket_connect_timeout=5
     )
-    # Test connection
     redis_client.ping()
 except redis.ConnectionError as e:
     print(f"Redis connection failed: {e}")
