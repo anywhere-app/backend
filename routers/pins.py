@@ -414,6 +414,8 @@ async def approve_location_request(request_id: int,
 
 @router.get("/{pin_id_or_slug}", response_model=PinResponse)
 async def get_pin_by_id(db: db_dependency, pin_id_or_slug: str, user: Optional[dict] = Depends(get_current_user)):
+    pin = None
+
     try:
         pin_id = int(pin_id_or_slug)
         pin = db.query(Pin).filter(Pin.id == pin_id).first()
