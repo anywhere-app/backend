@@ -10,7 +10,7 @@ from starlette import status
 from sqlalchemy.orm import Session, joinedload
 from models import Pin, LocationRequest, PinCategory, RequestMedia, RequestCategory, Wishlist, Visit
 from schemas import PinRequest, PinResponse
-from routers.auth import get_current_user
+from routers.auth import get_current_user, get_optional_current_user
 from geoalchemy2.elements import WKTElement
 from geoalchemy2.shape import to_shape
 from shapely.geometry import mapping
@@ -31,16 +31,12 @@ def get_db():
 
 db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[dict, Depends(get_current_user)]
-
 load_dotenv()
 MEDIA_DIR = Path(os.getenv("MEDIA_DIR"))
 
 
 @router.get("/", response_model=list[PinResponse])
-async def get_all_pins(db: db_dependency, user: Optional[dict] = Depends(get_current_user)):
-    if not user:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-
+async def get_all_pins(db: db_dependency, user: Optional[dict] = Depends(get_optional_current_user)):
     pins = db.query(Pin).options(
         joinedload(Pin.categories).joinedload(PinCategory.category)
     ).all()
