@@ -44,6 +44,7 @@ except redis.ConnectionError as e:
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/auth/token")
+oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="api/auth/token", auto_error=False)
 
 def get_db():
     db = SessionLocal()
@@ -183,6 +184,20 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)]):
         return {"username": username, "id": user_id, "is_admin": is_admin}
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid authentication credentials")
+
+async def get_optional_current_user(token: Annotated[str, Depends(oauth2_scheme_optional)]):
+    if not token:
+        return None
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str = payload.get("sub")
+        user_id: int = payload.get("id")
+        is_admin: bool = payload.get("is_admin")
+        if username is None or user_id is None:
+            return None
+        return {"username": username, "id": user_id, "is_admin": is_admin}
+    except JWTError:
+        return None
 
 @router.post("/admin-user", status_code=status.HTTP_201_CREATED)
 async def create_admin_user(db: db_dependency, create_user_request: CreateUserRequest, user: Annotated[dict, Depends(get_current_user)]):
