@@ -2,3 +2,6 @@
 .idea/
 __pycache__/
 *.pyc
+*.pub
+github_deploy_key
+github_deploy_key.pub
