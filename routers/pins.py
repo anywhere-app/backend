@@ -452,10 +452,97 @@ async def get_pin_by_id(db: db_dependency, pin_id_or_slug: str, user: Optional[d
         "updated_at": pin.updated_at,
     }
 
-@router.put("/{pin_id}", response_model=PinResponse)
-async def todo_update_pin(pin_id: int, db: db_dependency, pin: PinRequest, user: user_dependency):
-    pass
 
-@router.delete("/{pin_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def todo_delete_pin(pin_id: int, db: db_dependency, user: user_dependency):
-    pass
+@router.put("/{pin_id_or_slug}", response_model=PinResponse)
+async def update_pin(pin_id_or_slug: str, db: db_dependency, pin_req: PinRequest, user: user_dependency):
+    if not user["is_admin"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Only admins can update pins")
+
+    pin = None
+    try:
+        pin_id = int(pin_id_or_slug)
+        pin = db.query(Pin).filter(Pin.id == pin_id).first()
+    except ValueError:
+        pin = db.query(Pin).filter(Pin.slug == pin_id_or_slug).first()
+
+    if not pin:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pin not found")
+
+    pin.title = pin_req.title
+    pin.slug = pin_req.title.lower().replace(" ", "-")  # Auto-update slug based on new title
+    pin.description = pin_req.description
+    pin.cost = pin_req.cost
+
+    if pin_req.lat is not None and pin_req.lon is not None:
+        if pin_req.lon < -180 or pin_req.lon > 180 or pin_req.lat < -90 or pin_req.lat > 90:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid coordinates")
+        pin.coordinates = WKTElement(f"POINT({pin_req.lon} {pin_req.lat})", srid=4326)
+
+    if pin_req.category_ids is not None:
+        db.query(PinCategory).filter(PinCategory.pin_id == pin.id).delete()
+
+        for category_id in pin_req.category_ids:
+            new_cat = PinCategory(pin_id=pin.id, category_id=category_id)
+            db.add(new_cat)
+
+    db.commit()
+    db.refresh(pin)
+
+    in_wishlist = False
+    is_visited = False
+
+    if db.query(Wishlist).filter(Wishlist.pin_id == pin.id, Wishlist.user_id == user["id"]).first():
+        in_wishlist = True
+    if db.query(Visit).filter(Visit.pin_id == pin.id, Visit.user_id == user["id"]).first():
+        is_visited = True
+
+    return {
+        "id": pin.id,
+        "slug": pin.slug,
+        "title": pin.title,
+        "title_image_url": pin.title_image_url,
+        "description": pin.description,
+        "coordinates": mapping(to_shape(pin.coordinates)),
+        "categories": [cat.category.name for cat in pin.categories],
+        "cost": pin.cost,
+        "is_wishlisted": in_wishlist,
+        "is_visited": is_visited,
+        "post_count": pin.posts_count,
+        "created_at": pin.created_at,
+        "updated_at": pin.updated_at,
+    }
+
+
+@router.delete("/{pin_id_or_slug}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_pin(pin_id_or_slug: str, db: db_dependency, user: user_dependency):
+    if not user["is_admin"]:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden: Only admins can delete pins")
+
+    pin = None
+    try:
+        pin_id = int(pin_id_or_slug)
+        pin = db.query(Pin).filter(Pin.id == pin_id).first()
+    except ValueError:
+        pin = db.query(Pin).filter(Pin.slug == pin_id_or_slug).first()
+
+    if not pin:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pin not found")
+
+    if pin.title_image_url:
+        relative_path = str(pin.title_image_url).lstrip('/')
+        file_path = MEDIA_DIR / relative_path
+        if file_path.exists():
+            try:
+                file_path.unlink()
+            except Exception as e:
+                print(f"Error deleting file {file_path}: {e}")
+
+    db.query(PinCategory).filter(PinCategory.pin_id == pin.id).delete()
+
+    db.query(Wishlist).filter(Wishlist.pin_id == pin.id).delete()
+    db.query(Visit).filter(Visit.pin_id == pin.id).delete()
+
+    db.delete(pin)
+    db.commit()
+
+    return None
