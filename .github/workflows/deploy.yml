@@ -1,4 +1,4 @@
-name: Deploy to EC2
+name: Deploy with Rollback
 
 on:
   push:
@@ -16,11 +16,45 @@ jobs:
           username: ${{ secrets.EC2_USERNAME }}
           key: ${{ secrets.EC2_SSH_KEY }}
           port: 22
+          # The script acts as a standard shell script on your server
           script: |
-            cd /home/${{ secrets.EC2_USERNAME }}/backend 
+            cd /home/${{ secrets.EC2_USERNAME }}/backend
             
+            # 1. Save the current commit hash so we know where to go back to
+            OLD_COMMIT=$(git rev-parse HEAD)
+            echo "Current commit is $OLD_COMMIT"
+
+            # 2. Update to the new code
+            echo "Updating code..."
             git fetch
             git reset --hard origin/main
-            
+            source venv/bin/activate  # Activate your virtual environment
             pip install -r requirements.txt
+
+            # 3. Try to restart the service
+            echo "Restarting FastAPI service..."
             sudo systemctl restart fastapi
+            
+            # Wait 5 seconds to give the app time to crash if there is a bug
+            sleep 5
+
+            # 4. Check health: Is the service active?
+            if systemctl is-active --quiet fastapi; then
+                echo "✅ Deployment Successful: Service is running."
+            else
+                echo "❌ Deployment Failed: Service is down. Rolling back..."
+                
+                # --- ROLLBACK SECTION ---
+                git reset --hard $OLD_COMMIT
+            
+                sudo systemctl restart fastapi
+                
+                if systemctl is-active --quiet fastapi; then
+                    echo "✅ Rollback Successful: Service restored to previous version."
+                else
+                    echo "💀 Critical Error: Rollback failed. Manual intervention required."
+                fi
+                
+                # Exit with error code 1 so GitHub Actions marks this run as Red/Failed
+                exit 1
+            fi
