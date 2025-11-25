@@ -45,8 +45,8 @@ async def get_all_pins(db: db_dependency, user: Optional[dict] = Depends(get_opt
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No pins found")
 
     pin_ids = [pin.id for pin in pins]
-    wishlisted_pins = None
-    visited_pins = None
+    wishlisted_pins = set()
+    visited_pins = set()
     if user:
         wishlisted_pins = set(
             db.execute(
