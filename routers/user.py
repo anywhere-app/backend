@@ -7,7 +7,8 @@ from database import SessionLocal
 from starlette import status
 from sqlalchemy.orm import Session, joinedload, selectinload
 from models import Pin, Visit, Wishlist, User, Follow, Comment, Post, FavoriteCategory, PinCategory
-from schemas import UserResponse, FollowResponse, SuspensionRequest, SimpleUserResponse, UserUpdateRequest
+from schemas import UserResponse, FollowResponse, SuspensionRequest, SimpleUserResponse, UserUpdateRequest, \
+    VisitResponse, WishlistResponse
 from routers.auth import get_current_user
 from routers.posts import serialize_post, serialize_comment
 from geoalchemy2.elements import WKTElement
@@ -135,7 +136,7 @@ async def get_all_users(db: db_dependency):
         for user in users
     ]
 
-@router.get("/visited")
+@router.get("/visited", response_model=list[VisitResponse])
 async def get_visited(db: db_dependency, user: user_dependency):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -162,7 +163,7 @@ async def get_visited(db: db_dependency, user: user_dependency):
     return [serialize_visit_item(item[0], is_wishlisted=item[1]) for item in visit]
 
 
-@router.get("/wishlist")
+@router.get("/wishlist", response_model=list[WishlistResponse])
 async def get_wishlist(db: db_dependency, user: user_dependency):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -189,7 +190,7 @@ async def get_wishlist(db: db_dependency, user: user_dependency):
     return [serialize_wishlist_item(item[0], is_visited=item[1]) for item in wishlist]
 
 
-@router.post("/visited")
+@router.post("/visited", response_model=VisitResponse)
 async def add_to_visited(pin_id: int, db: db_dependency, user: user_dependency):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -207,7 +208,6 @@ async def add_to_visited(pin_id: int, db: db_dependency, user: user_dependency):
     db.commit()
     db.refresh(visited_item)
 
-    # Reload with categories using composite key
     visited_item = db.query(Visit).options(
         joinedload(Visit.pin).joinedload(Pin.categories).joinedload(PinCategory.category)
     ).filter(Visit.user_id == user["id"], Visit.pin_id == pin_id).first()
@@ -220,7 +220,7 @@ async def add_to_visited(pin_id: int, db: db_dependency, user: user_dependency):
     return serialize_visit_item(visited_item, is_wishlisted=is_wishlisted)
 
 
-@router.post("/wishlist")
+@router.post("/wishlist", response_model=WishlistResponse)
 async def add_to_wishlist(pin_id: int, db: db_dependency, user: user_dependency):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
@@ -238,7 +238,6 @@ async def add_to_wishlist(pin_id: int, db: db_dependency, user: user_dependency)
     db.commit()
     db.refresh(wishlist_item)
 
-    # Reload with categories using composite key
     wishlist_item = db.query(Wishlist).options(
         joinedload(Wishlist.pin).joinedload(Pin.categories).joinedload(PinCategory.category)
     ).filter(Wishlist.user_id == user["id"], Wishlist.pin_id == pin_id).first()
@@ -342,8 +341,7 @@ async def unfollow_user(id: int, db: db_dependency, user: user_dependency):
     db.commit()
     return {"message": "Unfollowed successfully"}
 
-
-@router.get("/{id}/visited")
+@router.get("/{id}/visited", response_model=list[VisitResponse])
 async def get_visited_by_id(id: int, db: db_dependency, user: user_dependency):
     if not user["is_admin"] and user["id"] != id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
@@ -370,7 +368,7 @@ async def get_visited_by_id(id: int, db: db_dependency, user: user_dependency):
     return [serialize_visit_item(item[0], is_wishlisted=item[1]) for item in visited]
 
 
-@router.get("/{id}/wishlist")
+@router.get("/{id}/wishlist", response_model=list[WishlistResponse])
 async def get_wishlist_by_id(id: int, user: user_dependency, db: db_dependency):
     if not user["is_admin"] and user["id"] != id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
@@ -457,14 +455,18 @@ def serialize_wishlist_item(item: Wishlist, is_visited: bool = False):
         "pin_id": item.pin.id,
         "added_at": item.added_at,
         "pin": {
+            "id": item.pin.id,
+            "slug": item.pin.slug,
             "title": item.pin.title,
+            "title_image_url": item.pin.title_image_url,
             "description": item.pin.description,
             "coordinates": mapping(to_shape(item.pin.coordinates)),
             "categories": [cat.category.name for cat in item.pin.categories] if item.pin.categories else [],
             "cost": item.pin.cost,
             "post_count": item.pin.posts_count,
-        },
-        "is_visited": is_visited,
+            "is_wishlisted": True,
+            "is_visited": is_visited,
+        }
     }
 
 
@@ -473,12 +475,16 @@ def serialize_visit_item(item: Visit, is_wishlisted: bool = False):
         "pin_id": item.pin.id,
         "added_at": item.visited_at,
         "pin": {
+            "id": item.pin.id,
+            "slug": item.pin.slug,
             "title": item.pin.title,
+            "title_image_url": item.pin.title_image_url,
             "description": item.pin.description,
             "coordinates": mapping(to_shape(item.pin.coordinates)),
             "categories": [cat.category.name for cat in item.pin.categories] if item.pin.categories else [],
             "cost": item.pin.cost,
             "post_count": item.pin.posts_count,
-        },
-        "is_wishlisted": is_wishlisted,
+            "is_wishlisted": is_wishlisted,
+            "is_visited": True,
+        }
     }

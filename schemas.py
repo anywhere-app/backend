@@ -120,3 +120,13 @@ class UserUpdateRequest(BaseModel):
     username: Optional[str] = None
     bio: Optional[str] = None
     pfp_url: Optional[str] = None
+
+class WishlistResponse(BaseSchema):
+    pin_id: int
+    added_at: datetime
+    pin: PinResponse
+
+class VisitResponse(BaseSchema):
+    pin_id: int
+    added_at: datetime
+    pin: PinResponse
