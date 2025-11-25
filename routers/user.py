@@ -202,7 +202,7 @@ async def get_visited(db: db_dependency, user: user_dependency):
     visit = (
         db.query(Visit, wq.c.pin_id.isnot(None).label("in_wishlist"))
         .options(
-            joinedload(Visit.pin).joinedload(Pin.categories)
+            joinedload(Visit.pin).joinedload(Pin.categories).joinedload(PinCategory.category)
         )
         .outerjoin(wq, wq.c.pin_id == Visit.pin_id)
         .filter(Visit.user_id == user["id"])
@@ -213,7 +213,6 @@ async def get_visited(db: db_dependency, user: user_dependency):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No visited pins found")
 
     return [serialize_visit_item(item[0], is_wishlisted=item[1]) for item in visit]
-
 
 @router.get("/wishlist")
 async def get_wishlist(db: db_dependency, user: user_dependency):
@@ -229,7 +228,7 @@ async def get_wishlist(db: db_dependency, user: user_dependency):
     wishlist = (
         db.query(Wishlist, vq.c.pin_id.isnot(None).label("is_visited"))
         .options(
-            joinedload(Wishlist.pin).joinedload(Pin.categories)
+            joinedload(Wishlist.pin).joinedload(Pin.categories).joinedload(PinCategory.category)
         )
         .outerjoin(vq, vq.c.pin_id == Wishlist.pin_id)
         .filter(Wishlist.user_id == user["id"])
@@ -240,7 +239,6 @@ async def get_wishlist(db: db_dependency, user: user_dependency):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Wishlist not found")
 
     return [serialize_wishlist_item(item[0], is_visited=item[1]) for item in wishlist]
-
 
 @router.post("/visited")
 async def add_to_visited(pin_id: int, db: db_dependency, user: user_dependency):
@@ -260,7 +258,10 @@ async def add_to_visited(pin_id: int, db: db_dependency, user: user_dependency):
     db.commit()
     db.refresh(visited_item)
 
-    # Check if in wishlist
+    visited_item = db.query(Visit).options(
+        joinedload(Visit.pin).joinedload(Pin.categories).joinedload(PinCategory.category)
+    ).filter(Visit.id == visited_item.id).first()
+
     is_wishlisted = db.query(Wishlist).filter(
         Wishlist.pin_id == pin_id,
         Wishlist.user_id == user["id"]
@@ -287,6 +288,10 @@ async def add_to_wishlist(pin_id: int, db: db_dependency, user: user_dependency)
     db.commit()
     db.refresh(wishlist_item)
 
+    wishlist_item = db.query(Wishlist).options(
+        joinedload(Wishlist.pin).joinedload(Pin.categories).joinedload(PinCategory.category)
+    ).filter(Wishlist.id == wishlist_item.id).first()
+
     is_visited = db.query(Visit).filter(
         Visit.pin_id == pin_id,
         Visit.user_id == user["id"]
@@ -301,18 +306,18 @@ async def get_visited_by_id(id: int, db: db_dependency, user: user_dependency):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authorized")
 
     wq = (
-        db.query(Wishlist.pin_id)
-        .filter(Wishlist.user_id == id)
+        db.query(Visit.pin_id)
+        .filter(Visit.user_id == user["id"])
         .subquery()
     )
 
     visited = (
-        db.query(Visit, wq.c.pin_id.isnot(None).label("in_wishlist"))
+        db.query(Wishlist, wq.c.pin_id.isnot(None).label("is_visited"))
         .options(
-            joinedload(Visit.pin).joinedload(Pin.categories)
+            joinedload(Wishlist.pin).joinedload(Pin.categories).joinedload(PinCategory.category)
         )
-        .outerjoin(wq, wq.c.pin_id == Visit.pin_id)
-        .filter(Visit.user_id == id)
+        .outerjoin(wq, wq.c.pin_id == Wishlist.pin_id)
+        .filter(Wishlist.user_id == user["id"])
         .all()
     )
 
@@ -329,17 +334,17 @@ async def get_wishlist_by_id(id: int, user: user_dependency, db: db_dependency):
 
     vq = (
         db.query(Visit.pin_id)
-        .filter(Visit.user_id == id)
+        .filter(Visit.user_id == user["id"])
         .subquery()
     )
 
     wishlist = (
         db.query(Wishlist, vq.c.pin_id.isnot(None).label("is_visited"))
         .options(
-            joinedload(Wishlist.pin).joinedload(Pin.categories)
+            joinedload(Wishlist.pin).joinedload(Pin.categories).joinedload(PinCategory.category)
         )
         .outerjoin(vq, vq.c.pin_id == Wishlist.pin_id)
-        .filter(Wishlist.user_id == id)
+        .filter(Wishlist.user_id == user["id"])
         .all()
     )
 
@@ -357,7 +362,7 @@ def serialize_wishlist_item(item: Wishlist, is_visited: bool = False):
             "title": item.pin.title,
             "description": item.pin.description,
             "coordinates": mapping(to_shape(item.pin.coordinates)),
-            "categories": [cat.name for cat in item.pin.categories] if item.pin.categories else [],
+            "categories": [cat.category.name for cat in item.pin.categories] if item.pin.categories else [],
             "cost": item.pin.cost,
             "post_count": item.pin.posts_count,
         },
@@ -373,7 +378,7 @@ def serialize_visit_item(item: Visit, is_wishlisted: bool = False):
             "title": item.pin.title,
             "description": item.pin.description,
             "coordinates": mapping(to_shape(item.pin.coordinates)),
-            "categories": [cat.name for cat in item.pin.categories] if item.pin.categories else [],
+            "categories": [cat.category.name for cat in item.pin.categories] if item.pin.categories else [],
             "cost": item.pin.cost,
             "post_count": item.pin.posts_count,
         },
