@@ -360,7 +360,7 @@ def serialize_wishlist_item(item: Wishlist):
             "title": item.pin.title,
             "description": item.pin.description,
             "coordinates": mapping(to_shape(item.pin.coordinates)),
-            "categories": [cat.category_id for cat in item.pin.categories] if item.pin.categories else [],
+            "categories": [cat.name for cat in item.pin.categories] if item.pin.categories else [],
             "cost": item.pin.cost,
             "post_count": item.pin.posts_count,
         }
@@ -374,7 +374,7 @@ def serialize_visit_item(item: Visit):
             "title": item.pin.title,
             "description": item.pin.description,
             "coordinates": mapping(to_shape(item.pin.coordinates)),
-            "categories": [cat.category_id for cat in item.pin.categories] if item.pin.categories else [],
+            "categories": [cat.name for cat in item.pin.categories] if item.pin.categories else [],
             "cost": item.pin.cost,
             "post_count": item.pin.posts_count,
         }
