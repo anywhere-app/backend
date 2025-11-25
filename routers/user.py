@@ -6,7 +6,7 @@ from sqlalchemy import select
 from database import SessionLocal
 from starlette import status
 from sqlalchemy.orm import Session, joinedload, selectinload
-from models import Pin, Visit, Wishlist, User, Follow, Comment, Post, FavoriteCategory
+from models import Pin, Visit, Wishlist, User, Follow, Comment, Post, FavoriteCategory, PinCategory
 from schemas import UserResponse, FollowResponse, SuspensionRequest, SimpleUserResponse, UserUpdateRequest
 from routers.auth import get_current_user
 from routers.posts import serialize_post, serialize_comment
@@ -150,7 +150,9 @@ async def get_all_users(db: db_dependency):
 async def get_wishlist(db: db_dependency, user: user_dependency):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    wishlist = db.query(Wishlist).options(joinedload(Wishlist.pin)).filter(Wishlist.user_id == user["id"]).all()
+    wishlist = db.query(Visit).options(
+        joinedload(Visit.pin).joinedload(Pin.categories).joinedload(PinCategory.category)
+    ).filter(Visit.user_id == user["id"]).all()
     if not wishlist:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Wishlist not found")
     return [serialize_wishlist_item(item) for item in wishlist]
@@ -178,7 +180,9 @@ async def add_to_wishlist(pin_id: int, db: db_dependency, user: user_dependency)
 async def get_visited(db: db_dependency, user: user_dependency):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
-    visit = db.query(Visit).options(joinedload(Visit.pin)).filter(Visit.user_id == user["id"]).all()
+    visit = db.query(Visit).options(
+        joinedload(Visit.pin).joinedload(Pin.categories).joinedload(PinCategory.category)
+    ).filter(Visit.user_id == user["id"]).all()
     if not visit:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No visited pins found")
     return [serialize_visit_item(item) for item in visit]
@@ -360,7 +364,7 @@ def serialize_wishlist_item(item: Wishlist):
             "title": item.pin.title,
             "description": item.pin.description,
             "coordinates": mapping(to_shape(item.pin.coordinates)),
-            "categories": [cat.name for cat in item.pin.categories] if item.pin.categories else [],
+            "categories": [cat.category.name for cat in item.pin.categories] if item.pin.categories else [],
             "cost": item.pin.cost,
             "post_count": item.pin.posts_count,
         }
