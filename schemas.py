@@ -1,7 +1,12 @@
 from datetime import datetime, timedelta
 from pydantic import BaseModel, ConfigDict, field_serializer, model_validator
 from typing import List, Optional, Dict, Any
+import os
+from pathlib import Path
+from dotenv import load_dotenv
 
+load_dotenv()
+BASE_URL = Path(os.getenv("BASE_URL"))
 
 class BaseSchema(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -40,8 +45,14 @@ class PinResponse(BaseSchema):
     is_visited: Optional[bool] = None
 
     @field_serializer('title_image_url')
-    def serialize_title_image_url(self, title_image_url, _info):
-        return f"https://api.anywhere.sk{title_image_url}" if title_image_url else None
+    def serialize_title_image_url(self, title_image_url: str | None, _info) -> str | None:
+        if not title_image_url:
+            return None
+        if title_image_url.startswith('http://') or title_image_url.startswith('https://'):
+            return title_image_url
+        path = title_image_url.lstrip('/')
+
+        return f"{BASE_URL}/{path}"
 
 
 class CategoryRequest(BaseModel):
@@ -90,6 +101,16 @@ class ParticipantUserResponse(BaseModel):
     username: str
     pfp_url: str | None = None
 
+    @field_serializer('pfp_url')
+    def serialize_pfp_url(self, pfp_url: str | None, _info) -> str | None:
+        if not pfp_url:
+            return None
+        if pfp_url.startswith('http://') or pfp_url.startswith('https://'):
+            return pfp_url
+        path = pfp_url.lstrip('/')
+
+        return f"{BASE_URL}/{path}"
+
 class CommentRequest(BaseModel):
     content: str
     parent_id: Optional[int] = None
@@ -114,6 +135,16 @@ class UserResponse(BaseSchema):
     suspended_until: Optional[datetime] = None
     suspended_reason: Optional[str] = None
 
+    @field_serializer('pfp_url')
+    def serialize_pfp_url(self, pfp_url: str | None, _info) -> str | None:
+        if not pfp_url:
+            return None
+        if pfp_url.startswith('http://') or pfp_url.startswith('https://'):
+            return pfp_url
+        path = pfp_url.lstrip('/')
+
+        return f"{BASE_URL}/{path}"
+
 class SimpleUserResponse(BaseSchema):
     id: int
     username: str
@@ -126,6 +157,16 @@ class SimpleUserResponse(BaseSchema):
     visited_count: int
     favorite_categories: Optional[List[CategoryResponse]] = None
     is_suspended: bool
+
+    @field_serializer('pfp_url')
+    def serialize_pfp_url(self, pfp_url: str | None, _info) -> str | None:
+        if not pfp_url:
+            return None
+        if pfp_url.startswith('http://') or pfp_url.startswith('https://'):
+            return pfp_url
+        path = pfp_url.lstrip('/')
+
+        return f"{BASE_URL}/{path}"
 
 class FollowResponse(BaseSchema):
     follower_id: int
@@ -140,6 +181,16 @@ class UserUpdateRequest(BaseModel):
     username: Optional[str] = None
     bio: Optional[str] = None
     pfp_url: Optional[str] = None
+
+    @field_serializer('pfp_url')
+    def serialize_pfp_url(self, pfp_url: str | None, _info) -> str | None:
+        if not pfp_url:
+            return None
+        if pfp_url.startswith('http://') or pfp_url.startswith('https://'):
+            return pfp_url
+        path = pfp_url.lstrip('/')
+
+        return f"{BASE_URL}/{path}"
 
 class WishlistResponse(BaseSchema):
     pin_id: int
