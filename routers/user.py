@@ -83,9 +83,9 @@ async def update_user(db: db_dependency,
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     account = db.query(User).filter(User.id == user["id"]).first()
-    if username is not None:
+    if username is not None or not "":
         account.username = username
-    if bio is not None:
+    if bio is not None or not "":
         account.bio = bio
     if media is not None:
         if media.content_type not in ["image/jpeg", "image/png", "image/tiff", "image/webp"]:
