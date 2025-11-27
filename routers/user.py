@@ -5,7 +5,7 @@ from pathlib import Path
 from threading import active_count
 from dotenv import load_dotenv
 from fastapi import APIRouter, Depends, HTTPException, UploadFile
-from typing import Annotated, List
+from typing import Annotated, List, Optional
 from fastapi.params import File
 from sqlalchemy import select
 from database import SessionLocal
@@ -78,7 +78,7 @@ async def update_user(db: db_dependency,
                       user: user_dependency,
                       username: str = None,
                       bio: str = None,
-                      media: UploadFile = File(...)):
+                      media: Optional[UploadFile] = File(None)):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
