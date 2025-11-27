@@ -173,3 +173,22 @@ async def join_hangout(hangout_id: int, db: db_dependency, user: user_dependency
     db.refresh(participant)
 
     return {"message": "Successfully joined hangout", "hangout_id": hangout_id}
+
+@router.post("/{hangout_id}/leave", status_code=status.HTTP_202_ACCEPTED)
+async def leave_hangout(hangout_id: int, db: db_dependency, user: user_dependency):
+    hangout = db.query(Hangout).filter(Hangout.id == hangout_id).with_for_update().first()
+
+    if not hangout:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Hangout not found")
+
+    existing = db.query(HangoutParticipant) \
+        .filter(HangoutParticipant.hangout_id == hangout_id, HangoutParticipant.user_id == user["id"]) \
+        .first()
+
+    if not existing:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Already left")
+
+    db.delete(existing)
+    db.commit()
+
+    return {"message": "Successfully left hangout", "hangout_id": hangout_id}
