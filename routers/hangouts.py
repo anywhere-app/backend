@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Annotated, List, Optional
 from database import SessionLocal
 from sqlalchemy.orm import Session, joinedload
-from models import Hangout, HangoutParticipant, Pin
+from models import Hangout, HangoutParticipant, Pin, PinCategory
 from schemas import HangoutRequest, HangoutUpdate, HangoutResponse
 from routers.auth import get_current_user
 from geoalchemy2.shape import to_shape
@@ -72,7 +72,7 @@ async def get_all_hangouts(db: db_dependency, user: user_dependency):
     hangouts = db.query(Hangout) \
         .options(
         joinedload(Hangout.participants),
-        joinedload(Hangout.pin).joinedload(Pin.categories).joinedload("category"),
+        joinedload(Hangout.pin).joinedload(Pin.categories).joinedload(PinCategory.category),
         joinedload(Hangout.user)
     ) \
         .all()
@@ -109,7 +109,7 @@ async def get_hangout(hangout_id: int, db: db_dependency, user: user_dependency)
         .filter(Hangout.id == hangout_id) \
         .options(
         joinedload(Hangout.participants),
-        joinedload(Hangout.pin).joinedload(Pin.categories).joinedload("category"),
+        joinedload(Hangout.pin).joinedload(Pin.categories).joinedload(PinCategory.category),
         joinedload(Hangout.user)
     ) \
         .first()
