@@ -177,21 +177,6 @@ class SuspensionRequest(BaseModel):
     reason: str
     duration: Optional[timedelta] = None
 
-class UserUpdateRequest(BaseModel):
-    username: Optional[str] = None
-    bio: Optional[str] = None
-    pfp_url: Optional[str] = None
-
-    @field_serializer('pfp_url')
-    def serialize_pfp_url(self, pfp_url: str | None, _info) -> str | None:
-        if not pfp_url:
-            return None
-        if pfp_url.startswith('http://') or pfp_url.startswith('https://'):
-            return pfp_url
-        path = pfp_url.lstrip('/')
-
-        return f"{BASE_URL}/{path}"
-
 class WishlistResponse(BaseSchema):
     pin_id: int
     added_at: datetime

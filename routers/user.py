@@ -1,14 +1,18 @@
+import os
+import uuid
 from datetime import datetime, UTC
+from pathlib import Path
 from threading import active_count
-from fastapi import APIRouter, Depends, HTTPException
+from dotenv import load_dotenv
+from fastapi import APIRouter, Depends, HTTPException, UploadFile
 from typing import Annotated, List
+from fastapi.params import File
 from sqlalchemy import select
 from database import SessionLocal
 from starlette import status
 from sqlalchemy.orm import Session, joinedload, selectinload
 from models import Pin, Visit, Wishlist, User, Follow, Comment, Post, FavoriteCategory, PinCategory
-from schemas import UserResponse, FollowResponse, SuspensionRequest, SimpleUserResponse, UserUpdateRequest, \
-    VisitResponse, WishlistResponse
+from schemas import UserResponse, FollowResponse, SuspensionRequest, SimpleUserResponse, VisitResponse, WishlistResponse
 from routers.auth import get_current_user
 from routers.posts import serialize_post, serialize_comment
 from geoalchemy2.elements import WKTElement
@@ -29,6 +33,8 @@ def get_db():
 
 db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[dict, Depends(get_current_user)]
+load_dotenv()
+MEDIA_DIR = Path(os.getenv("MEDIA_DIR"))
 
 
 @router.get("/", response_model=UserResponse)
@@ -68,17 +74,62 @@ async def get_user(db: db_dependency, user: user_dependency):
     }
 
 @router.put("/", response_model=UserResponse)
-async def update_user(db: db_dependency, user: user_dependency, updated_user: UserUpdateRequest):
+async def update_user(db: db_dependency,
+                      user: user_dependency,
+                      username: str = None,
+                      bio: str = None,
+                      media: UploadFile = File(...)):
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     account = db.query(User).filter(User.id == user["id"]).first()
-    if updated_user.username is not None:
-        account.username = updated_user.username
-    if updated_user.bio is not None:
-        account.bio = updated_user.bio
-    if updated_user.pfp_url is not None:
-        account.pfp_url = updated_user.pfp_url
+    if username is not None:
+        account.username = username
+    if bio is not None:
+        account.bio = bio
+    if media is not None:
+        if media.content_type not in ["image/jpeg", "image/png", "image/tiff", "image/webp"]:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid file type. Allowed types: JPEG, PNG, TIFF, WEBP"
+            )
+
+        MEDIA_DIR.mkdir(parents=True, exist_ok=True)
+
+        user_dir = MEDIA_DIR / str(user["id"])
+        user_dir.mkdir(parents=True, exist_ok=True)
+
+        ext = os.path.splitext(media.filename)[1]
+        unique_name = f"{uuid.uuid4().hex}{ext}"
+        file_path = user_dir / unique_name
+        file_size = 0
+        max_size = 20 * 1024 * 1024
+
+        try:
+            with open(file_path, "wb") as f:
+                while chunk := await media.read(1024 * 1024):
+                    file_size += len(chunk)
+                    if file_size > max_size:
+                        f.close()
+                        file_path.unlink(missing_ok=True)
+                        raise HTTPException(
+                            status_code=status.HTTP_400_BAD_REQUEST,
+                            detail=f"File too large. Max size: {max_size / (1024 * 1024):.0f}MB"
+                        )
+                    f.write(chunk)
+        except HTTPException:
+            raise
+        except Exception as e:
+            if file_path.exists():
+                file_path.unlink(missing_ok=True)
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to save file: {str(e)}"
+            )
+
+        media_url = f"/media/{user['id']}/{unique_name}"
+        account.pfp_url = media_url
+
     db.commit()
     db.refresh(account)
     return {
