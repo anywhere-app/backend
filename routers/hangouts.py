@@ -25,17 +25,7 @@ def get_db():
 db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[dict, Depends(get_current_user)]
 
-
-async def get_optional_user(token: str = None):
-    try:
-        if token:
-            return await get_current_user(token)
-    except:
-        return None
-    return None
-
-
-def serialize_hangout(hangout: Hangout, current_user_id: int = None) -> dict:
+def serialize_hangout(hangout: Hangout, current_user_id: int):
     coordinates = {}
     if hangout.pin and hangout.pin.coordinates:
         point = to_shape(hangout.pin.coordinates)
@@ -72,13 +62,13 @@ def serialize_hangout(hangout: Hangout, current_user_id: int = None) -> dict:
         },
         "owner_id": hangout.creator_id,
         "owner_username": hangout.user.username,
-        "owner_pfp": hangout.user.pfp_url or "",
+        "owner_pfp": hangout.user.pfp_url,
         "is_attending": is_attending
     }
 
 
 @router.get("/", response_model=List[HangoutResponse])
-async def get_all_hangouts(db: db_dependency, user: Optional[dict] = Depends(get_optional_user)):
+async def get_all_hangouts(db: db_dependency, user: user_dependency):
     hangouts = db.query(Hangout) \
         .options(
         joinedload(Hangout.participants),
@@ -114,7 +104,7 @@ async def create_hangout(db: db_dependency, hangout: HangoutRequest, user: user_
 
 
 @router.get("/{hangout_id}", response_model=HangoutResponse)
-async def get_hangout(hangout_id: int, db: db_dependency, user: Optional[dict] = Depends(get_optional_user)):
+async def get_hangout(hangout_id: int, db: db_dependency, user: user_dependency):
     hangout = db.query(Hangout) \
         .filter(Hangout.id == hangout_id) \
         .options(
