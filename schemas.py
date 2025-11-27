@@ -26,12 +26,44 @@ class PinRequest(BaseModel):
     cost: Optional[str] = None
     category_ids: List[int]
 
+class PinResponse(BaseSchema):
+    id: int
+    slug: str
+    title: str
+    title_image_url: str
+    description: Optional[str] = None
+    coordinates: Dict[str, Any]
+    categories: List[str]
+    cost: Optional[str] = None
+    post_count: int
+    is_wishlisted: Optional[bool] = None
+    is_visited: Optional[bool] = None
+
+    @field_serializer('title_image_url')
+    def serialize_title_image_url(self, title_image_url, _info):
+        return f"https://api.anywhere.sk{title_image_url}" if title_image_url else None
+
+
 class CategoryRequest(BaseModel):
     name: str
 
 class CategoryResponse(BaseSchema):
     id: int
     name: str
+
+class HangoutResponse(BaseSchema):
+    title: str
+    description: Optional[str] = None
+    catering: Optional[str] = None
+    expected_participants: Optional[int] = None
+    max_participants: Optional[int] = None
+    start_time: datetime
+    duration: Optional[timedelta] = None
+    pin: PinResponse
+    owner_id: int
+    owner_username: str
+    owner_pfp: str
+    is_attending: Optional[bool] = False
 
 class HangoutRequest(BaseModel):
     title: str
@@ -89,23 +121,6 @@ class SimpleUserResponse(BaseSchema):
     visited_count: int
     favorite_categories: Optional[List[CategoryResponse]] = None
     is_suspended: bool
-
-class PinResponse(BaseSchema):
-    id: int
-    slug: str
-    title: str
-    title_image_url: str
-    description: Optional[str] = None
-    coordinates: Dict[str, Any]
-    categories: List[str]
-    cost: Optional[str] = None
-    post_count: int
-    is_wishlisted: Optional[bool] = None
-    is_visited: Optional[bool] = None
-
-    @field_serializer('title_image_url')
-    def serialize_title_image_url(self, title_image_url, _info):
-        return f"https://api.anywhere.sk{title_image_url}" if title_image_url else None
 
 class FollowResponse(BaseSchema):
     follower_id: int
