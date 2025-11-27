@@ -100,6 +100,7 @@ class ParticipantUserResponse(BaseModel):
     user_id: int
     username: str
     pfp_url: str | None = None
+    is_followed: bool = False
 
     @field_serializer('pfp_url')
     def serialize_pfp_url(self, pfp_url: str | None, _info) -> str | None:

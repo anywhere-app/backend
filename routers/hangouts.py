@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Annotated, List, Optional
 from database import SessionLocal
 from sqlalchemy.orm import Session, joinedload
-from models import Hangout, HangoutParticipant, Pin, PinCategory
+from models import Hangout, HangoutParticipant, Pin, PinCategory, Follow
 from schemas import HangoutRequest, HangoutUpdate, HangoutResponse, ParticipantUserResponse
 from routers.auth import get_current_user
 from geoalchemy2.shape import to_shape
@@ -195,7 +195,10 @@ async def leave_hangout(hangout_id: int, db: db_dependency, user: user_dependenc
 
 
 @router.get("/{hangout_id}/participants", response_model=List[ParticipantUserResponse])
-async def get_hangout_participants(hangout_id: int, db: db_dependency):
+async def get_hangout_participants(hangout_id: int, db: db_dependency, user: user_dependency):
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
+
     hangout = db.query(Hangout).filter(Hangout.id == hangout_id).first()
     if not hangout:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Hangout not found")
@@ -208,8 +211,19 @@ async def get_hangout_participants(hangout_id: int, db: db_dependency):
     if not participants:
         return []
 
+    participant_ids = [p.user_id for p in participants]
+
+    followed_ids = db.query(Follow.following_id) \
+        .filter(
+        Follow.follower_id == user["id"],
+        Follow.following_id.in_(participant_ids)
+    ) \
+        .all()
+    followed_id_set = {id_[0] for id_ in followed_ids}
+
     return [{
         "user_id": p.user.id,
         "username": p.user.username,
-        "pfp_url": p.user.pfp_url
+        "pfp_url": p.user.pfp_url,
+        "is_followed": p.user.id in followed_id_set
     } for p in participants]
