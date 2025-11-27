@@ -85,6 +85,11 @@ class HangoutUpdate(BaseModel):
     start_time: Optional[datetime] = None
     duration: Optional[timedelta] = None
 
+class ParticipantUserResponse(BaseModel):
+    user_id: int
+    username: str
+    pfp_url: str | None = None
+
 class CommentRequest(BaseModel):
     content: str
     parent_id: Optional[int] = None

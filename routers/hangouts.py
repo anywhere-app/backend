@@ -3,7 +3,7 @@ from typing import Annotated, List, Optional
 from database import SessionLocal
 from sqlalchemy.orm import Session, joinedload
 from models import Hangout, HangoutParticipant, Pin, PinCategory
-from schemas import HangoutRequest, HangoutUpdate, HangoutResponse
+from schemas import HangoutRequest, HangoutUpdate, HangoutResponse, ParticipantUserResponse
 from routers.auth import get_current_user
 from geoalchemy2.shape import to_shape
 from shapely.geometry import mapping
@@ -192,3 +192,24 @@ async def leave_hangout(hangout_id: int, db: db_dependency, user: user_dependenc
     db.commit()
 
     return {"message": "Successfully left hangout", "hangout_id": hangout_id}
+
+
+@router.get("/{hangout_id}/participants", response_model=List[ParticipantUserResponse])
+async def get_hangout_participants(hangout_id: int, db: db_dependency):
+    hangout = db.query(Hangout).filter(Hangout.id == hangout_id).first()
+    if not hangout:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Hangout not found")
+
+    participants = db.query(HangoutParticipant) \
+        .filter(HangoutParticipant.hangout_id == hangout_id) \
+        .options(joinedload(HangoutParticipant.user)) \
+        .all()
+
+    if not participants:
+        return []
+
+    return [{
+        "user_id": p.user.id,
+        "username": p.user.username,
+        "pfp_url": p.user.pfp_url
+    } for p in participants]
