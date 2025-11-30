@@ -78,7 +78,7 @@ class Pin(Base):
     id = Column(Integer, primary_key=True, index=True)
     slug = Column(String, unique=True, nullable=False)
     title = Column(String, nullable=False)
-    title_image_url = Column(String, nullable=False)
+    title_image_url = Column(String, nullable=True)
     coordinates = Column(Geometry(geometry_type='POINT', srid=4326))
     description = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), default=func.now())
