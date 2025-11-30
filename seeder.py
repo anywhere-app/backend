@@ -1,88 +1,116 @@
-from database import SessionLocal
-from models import Pin, PinCategory, Category
+import json
 import random
-import string
-import math
+from sqlalchemy.orm import Session
+from models import Pin
 
 
-db = SessionLocal()
-
-# Bratislava bounding box
-BRATISLAVA_BOUNDS = {
-    'min_lat': 48.05,
-    'max_lat': 48.22,
-    'min_lon': 17.0,
-    'max_lon': 17.20
-}
+def create_slug(name, osm_id):
+    """Create a unique slug from name or fallback to osm_id"""
+    if name:
+        return name.lower().replace(" ", "_").replace("&", "and")
+    return f"location_{osm_id}"
 
 
-def generate_bratislava_coordinates():
-    """Generate random coordinates within Bratislava with realistic distribution"""
-    # Weight towards city center
-    center_lat, center_lon = 48.1486, 17.1077
+def get_title(properties):
+    """Extract title from properties"""
+    if properties.get('name'):
+        return properties['name']
 
-    # Generate with normal distribution (cluster around center)
-    latitude = random.gauss(center_lat, 0.04)  # Standard deviation ~4km
-    longitude = random.gauss(center_lon, 0.05)
+    # Fallback to type of location
+    for key in ['shop', 'amenity', 'leisure', 'tourism', 'historic']:
+        if properties.get(key):
+            return f"{properties[key].replace('_', ' ').title()}"
 
-    # Ensure within bounds
-    latitude = max(BRATISLAVA_BOUNDS['min_lat'], min(latitude, BRATISLAVA_BOUNDS['max_lat']))
-    longitude = max(BRATISLAVA_BOUNDS['min_lon'], min(longitude, BRATISLAVA_BOUNDS['max_lon']))
-
-    return latitude, longitude
+    return f"Location {properties['osm_id']}"
 
 
-try:
-    # Create categories
-    for i in range(15):
-        name = ''.join(random.choices(string.ascii_letters, k=8))
-        description = ''.join(random.choices(string.ascii_letters, k=70))
+def get_description(properties):
+    """Generate description from available properties"""
+    parts = []
 
-        db.add(Category(
-            name=name,
-        ))
-    db.commit()
+    if properties.get('shop'):
+        parts.append(f"Shop type: {properties['shop']}")
+    if properties.get('amenity'):
+        parts.append(f"Amenity: {properties['amenity']}")
+    if properties.get('leisure'):
+        parts.append(f"Leisure: {properties['leisure']}")
+    if properties.get('tourism'):
+        parts.append(f"Tourism: {properties['tourism']}")
+    if properties.get('opening_hours'):
+        parts.append(f"Hours: {properties['opening_hours']}")
+    if properties.get('religion'):
+        parts.append(f"Religion: {properties['religion']}")
+    if properties.get('historic'):
+        parts.append(f"Historic: {properties['historic']}")
 
-    # Get all categories
-    categories = db.query(Category).all()
+    return " | ".join(parts) if parts else None
 
-    # Create pins
-    for i in range(15):
-        title = ''.join(random.choices(string.ascii_letters, k=10))
-        description = ''.join(random.choices(string.ascii_letters, k=100))
 
-        # Generate random coordinates in Bratislava
-        latitude, longitude = generate_bratislava_coordinates()
+def seed_pins_from_geojson(session: Session, geojson_path: str):
+    """
+    Seed the database with Pin records from a GeoJSON file
 
-        pin = Pin(
-            slug=title.lower().replace(" ", "_"),
-            title=title,
-            coordinates=f'POINT({longitude} {latitude})',
-            description=description,
-            cost=random.choice(['$', '$$', '$$$', '$$$$', None]),
-            wishlist_count=random.randint(0, 100),
-            visit_count=random.randint(0, 50),
-            posts_count=random.randint(0, 20),
-            view_count=random.randint(0, 500),
-        )
-        db.add(pin)
-        db.flush()  # Get the pin ID
+    Args:
+        session: SQLAlchemy session
+        geojson_path: Path to the GeoJSON file
+    """
+    with open(geojson_path, 'r', encoding='utf-8') as f:
+        data = json.load(f)
 
-        # Assign random categories to the pin
-        num_categories = random.randint(1, 3)
-        selected_categories = random.sample(categories, min(num_categories, len(categories)))
+    pins_created = 0
 
-        for category in selected_categories:
-            db.add(PinCategory(
-                pin_id=pin.id,
-                category_id=category.id
-            ))
+    for feature in data['features']:
+        try:
+            props = feature['properties']
+            coords = feature['geometry']['coordinates']
+            longitude, latitude = coords[0], coords[1]
 
-    db.commit()
-    print("Seeding completed successfully!")
+            title = get_title(props)
+            slug = create_slug(props.get('name'), props['osm_id'])
+            description = get_description(props)
 
-except Exception as e:
-    db.rollback()
-    print(f"Error during seeding: {e}")
-finally:
-    db.close()
+            # Check if pin already exists
+            existing = session.query(Pin).filter_by(slug=slug).first()
+            if existing:
+                print(f"Skipping duplicate: {slug}")
+                continue
+
+            pin = Pin(
+                slug=slug,
+                title=title,
+                coordinates=f'POINT({longitude} {latitude})',
+                description=description,
+                cost=random.choice(['$', '$$', '$$$', '$$$$', None]),
+                wishlist_count=random.randint(0, 100),
+                visit_count=random.randint(0, 50),
+                posts_count=random.randint(0, 20),
+                view_count=random.randint(0, 500),
+            )
+
+            session.add(pin)
+            pins_created += 1
+
+        except Exception as e:
+            print(f"Error processing feature {props.get('osm_id')}: {e}")
+            continue
+
+    session.commit()
+    print(f"Successfully created {pins_created} pins")
+
+
+# Usage example:
+if __name__ == "__main__":
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+
+    # Replace with your database URL
+    DATABASE_URL = "postgresql://user:password@localhost/dbname"
+
+    engine = create_engine(DATABASE_URL)
+    SessionLocal = sessionmaker(bind=engine)
+    db = SessionLocal()
+
+    try:
+        seed_pins_from_geojson(db, "anywhere.geojson")
+    finally:
+        db.close()
