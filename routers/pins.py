@@ -36,10 +36,17 @@ MEDIA_DIR = Path(os.getenv("MEDIA_DIR"))
 
 
 @router.get("/", response_model=list[PinResponse])
-async def get_all_pins(db: db_dependency, user: Optional[dict] = Depends(get_optional_current_user)):
-    pins = db.query(Pin).options(
+async def get_all_pins(
+        db: db_dependency,
+        user: Optional[dict] = Depends(get_optional_current_user),
+        limit: int = 100,
+        offset: int = 0
+):
+    pins_query = db.query(Pin).options(
         joinedload(Pin.categories).joinedload(PinCategory.category)
-    ).all()
+    ).limit(limit).offset(offset)
+
+    pins = pins_query.all()
 
     if not pins:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No pins found")
@@ -47,6 +54,7 @@ async def get_all_pins(db: db_dependency, user: Optional[dict] = Depends(get_opt
     pin_ids = [pin.id for pin in pins]
     wishlisted_pins = set()
     visited_pins = set()
+
     if user:
         wishlisted_pins = set(
             db.execute(
@@ -64,8 +72,7 @@ async def get_all_pins(db: db_dependency, user: Optional[dict] = Depends(get_opt
                     Visit.pin_id.in_(pin_ids),
                     Visit.user_id == user["id"]
                 )
-            )
-            .scalars().all()
+            ).scalars().all()
         )
 
     return [
@@ -86,6 +93,147 @@ async def get_all_pins(db: db_dependency, user: Optional[dict] = Depends(get_opt
         }
         for pin in pins
     ]
+
+
+@router.get("/geojson")
+async def get_pins_geojson(
+        db: db_dependency,
+        user: Optional[dict] = Depends(get_optional_current_user),
+        limit: int = 1000,
+        offset: int = 0,
+        bbox: Optional[str] = None
+):
+    from sqlalchemy import func, and_
+
+    query = db.query(
+        Pin.id,
+        Pin.slug,
+        Pin.title,
+        Pin.title_image_url,
+        func.ST_AsGeoJSON(Pin.coordinates).label('geojson'),
+        Pin.cost,
+        Pin.posts_count
+    )
+
+    if bbox:
+        try:
+            min_lon, min_lat, max_lon, max_lat = map(float, bbox.split(','))
+            query = query.filter(
+                func.ST_Intersects(
+                    Pin.coordinates,
+                    func.ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326)
+                )
+            )
+        except (ValueError, AttributeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid bbox format. Use: min_lon,min_lat,max_lon,max_lat"
+            )
+
+    query = query.limit(limit).offset(offset)
+    results = query.all()
+
+    pin_ids = [r.id for r in results]
+    wishlisted_pins = set()
+    visited_pins = set()
+
+    if user and pin_ids:
+        wishlisted_pins = set(
+            db.execute(
+                select(Wishlist.pin_id).where(
+                    Wishlist.pin_id.in_(pin_ids),
+                    Wishlist.user_id == user["id"]
+                )
+            ).scalars().all()
+        )
+        visited_pins = set(
+            db.execute(
+                select(Visit.pin_id).where(
+                    Visit.pin_id.in_(pin_ids),
+                    Visit.user_id == user["id"]
+                )
+            ).scalars().all()
+        )
+
+    features = []
+    for r in results:
+        import json
+        geometry = json.loads(r.geojson)
+
+        features.append({
+            "type": "Feature",
+            "geometry": geometry,
+            "properties": {
+                "id": r.id,
+                "slug": r.slug,
+                "title": r.title,
+                "title_image_url": r.title_image_url,
+                "cost": r.cost,
+                "post_count": r.posts_count,
+                "is_wishlisted": r.id in wishlisted_pins,
+                "is_visited": r.id in visited_pins
+            }
+        })
+
+    return {
+        "type": "FeatureCollection",
+        "features": features
+    }
+
+
+@router.get("/clustered")
+async def get_pins_clustered(
+        db: db_dependency,
+        zoom: int = 10,
+        bbox: Optional[str] = None
+):
+    from sqlalchemy import func
+
+    grid_size = 180 / (2 ** zoom)
+
+    query = db.query(
+        func.floor(func.ST_X(Pin.coordinates) / grid_size).label('grid_x'),
+        func.floor(func.ST_Y(Pin.coordinates) / grid_size).label('grid_y'),
+        func.count(Pin.id).label('count'),
+        func.avg(func.ST_X(Pin.coordinates)).label('center_lon'),
+        func.avg(func.ST_Y(Pin.coordinates)).label('center_lat')
+    )
+
+    if bbox:
+        try:
+            min_lon, min_lat, max_lon, max_lat = map(float, bbox.split(','))
+            query = query.filter(
+                func.ST_Intersects(
+                    Pin.coordinates,
+                    func.ST_MakeEnvelope(min_lon, min_lat, max_lon, max_lat, 4326)
+                )
+            )
+        except (ValueError, AttributeError):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid bbox format"
+            )
+
+    clusters = query.group_by('grid_x', 'grid_y').all()
+
+    return {
+        "type": "FeatureCollection",
+        "features": [
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [float(c.center_lon), float(c.center_lat)]
+                },
+                "properties": {
+                    "count": c.count,
+                    "cluster": True
+                }
+            }
+            for c in clusters
+        ]
+    }
+
 
 @router.post("/", status_code=status.HTTP_201_CREATED, response_model=PinResponse)
 async def create_pin(db: db_dependency, user: user_dependency,
