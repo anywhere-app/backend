@@ -1,7 +1,7 @@
 import json
 import random
 from sqlalchemy.orm import Session
-from models import Pin
+from models import Pin  # Replace with your actual import
 
 
 def create_slug(name, osm_id):
@@ -43,7 +43,7 @@ def get_description(properties):
     if properties.get('historic'):
         parts.append(f"Historic: {properties['historic']}")
 
-    return " | ".join(parts) if parts else None
+    return " | ".join(parts) if parts else "No description available"
 
 
 def seed_pins_from_geojson(session: Session, geojson_path: str):
@@ -57,7 +57,12 @@ def seed_pins_from_geojson(session: Session, geojson_path: str):
     with open(geojson_path, 'r', encoding='utf-8') as f:
         data = json.load(f)
 
-    pins_created = 0
+    pins_to_create = []
+    skipped = 0
+    errors = 0
+
+    # First, get all existing slugs to check for duplicates
+    existing_slugs = {pin.slug for pin in session.query(Pin.slug).all()}
 
     for feature in data['features']:
         try:
@@ -70,15 +75,16 @@ def seed_pins_from_geojson(session: Session, geojson_path: str):
             description = get_description(props)
 
             # Check if pin already exists
-            existing = session.query(Pin).filter_by(slug=slug).first()
-            if existing:
+            if slug in existing_slugs:
                 print(f"Skipping duplicate: {slug}")
+                skipped += 1
                 continue
 
             pin = Pin(
                 slug=slug,
                 title=title,
-                coordinates=f'POINT({longitude} {latitude})',
+                title_image_url='',  # Empty string or use a default image URL
+                coordinates=f'SRID=4326;POINT({longitude} {latitude})',  # Proper EWKT format
                 description=description,
                 cost=random.choice(['$', '$$', '$$$', '$$$$', None]),
                 wishlist_count=random.randint(0, 100),
@@ -87,15 +93,28 @@ def seed_pins_from_geojson(session: Session, geojson_path: str):
                 view_count=random.randint(0, 500),
             )
 
-            session.add(pin)
-            pins_created += 1
+            pins_to_create.append(pin)
+            existing_slugs.add(slug)  # Add to set to catch duplicates in this batch
 
         except Exception as e:
-            print(f"Error processing feature {props.get('osm_id')}: {e}")
+            print(f"Error processing feature {props.get('osm_id', 'unknown')}: {e}")
+            errors += 1
             continue
 
-    session.commit()
-    print(f"Successfully created {pins_created} pins")
+    # Bulk add all pins
+    if pins_to_create:
+        try:
+            session.bulk_save_objects(pins_to_create)
+            session.commit()
+            print(f"\n✓ Successfully created {len(pins_to_create)} pins")
+            print(f"✗ Skipped {skipped} duplicates")
+            print(f"✗ Failed {errors} records")
+        except Exception as e:
+            session.rollback()
+            print(f"Error committing transaction: {e}")
+            print("Rolling back all changes")
+    else:
+        print("No pins to create")
 
 
 # Usage example:
